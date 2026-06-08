@@ -1,0 +1,2465 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#000000">
+    <title>ATP网球比分板 专业版</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='90' font-size='90'>🎾</text></svg>" sizes="any">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><text y='160' font-size='160'>🎾</text></svg>">
+    <!-- 引入 html2canvas 用于精确截取比分板区域且不包含鼠标 -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        html, body {
+            background: #0a0a0a;
+            color: #f5f5f7;
+            width: 100%;
+            height: auto;
+            overscroll-behavior: none;
+            touch-action: pan-y;
+        }
+        body {
+            padding: 24px 20px;
+            max-width: 860px;
+            margin: 0 auto;
+            touch-action: pan-y;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .scoreboard {
+            background: #000;
+            display: none;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background-color: #000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+
+        .setup {
+            background: #161618;
+            padding: 24px 20px;
+            border-radius: 18px;
+            margin-bottom: 24px;
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+        }
+        .setup input, .setup select {
+            width: 48%;
+            padding: 13px 14px;
+            font-size: 17px;
+            background: #1c1c1e;
+            border: 1px solid rgba(255,255,255,0.12);
+            color: #f5f5f7;
+            border-radius: 12px;
+            margin: 5px 1%;
+            transition: border-color 0.2s;
+        }
+        .setup input:focus, .setup select:focus { outline: none; border-color: rgba(255,215,0,0.45); }
+        .setup input::placeholder { color: #636366; }
+        .setup .full-width {
+            width: 98%;
+            margin: 8px 1%;
+            display: inline-block;
+        }
+        .setup label {
+            font-size: 15px;
+            font-weight: 500;
+            color: #ffd700;
+            margin-left: 1%;
+            display: inline-block;
+            width: 30%;
+        }
+        .setup .mode-select {
+            width: 60%;
+        }
+        .setup button {
+            margin-top: 18px;
+            padding: 14px 32px;
+            font-size: 17px;
+            background: #ffd700;
+            color: #000;
+            border: none;
+            font-weight: 700;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: opacity 0.15s, transform 0.1s;
+        }
+        .setup button:active { opacity: 0.82; transform: scale(0.97); }
+        .setup-btn-group {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .language-switcher {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .language-btn {
+            padding: 7px 16px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: #1c1c1e;
+            color: rgba(255,255,255,0.62);
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+        .language-btn.active {
+            background: #ffd700;
+            color: #000;
+            border-color: #ffd700;
+        }
+
+        .player {
+            display: flex;
+            align-items: center;
+            height: 80px;
+            border-bottom: 1.5px solid #333;
+            position: relative;
+        }
+        .serve-dot {
+            width: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: none;
+            background: #ffd700;
+        }
+        .name {
+            width: 180px;
+            font-size: 32px;
+            font-weight: bold;
+            padding-left: 8px;
+        }
+        .sets {
+            display: flex;
+            height: 100%;
+        }
+        .set {
+            width: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            font-weight: bold;
+            position: relative;
+        }
+        .tiebreak-sup {
+            position: absolute; top: 14px; right: 4px;
+            font-size: 14px; color: #fff;
+        }
+        .current-set {
+            background: #ffd700; color: #000;
+        }
+        .past-set { color: #fff; }
+        .winner { color: #ffd700; }
+
+        .point-box {
+            width: 220px; height: 80px;
+            display: flex; align-items: center; justify-content: flex-start; gap: 14px; padding: 0 10px;
+        }
+        .point-main {
+            font-size: 36px; font-weight: bold; color: #fff;
+            width: 80px; text-align: center;
+        }
+        .key-point {
+            flex-shrink: 0; width: auto; min-width: 96px;
+            font-size: 26px; font-weight: bold; color: #ffd700;
+            opacity: 0; transition: opacity 0.3s ease;
+            padding: 5px 10px; background: rgba(0,0,0,0.85); border-radius: 4px;
+            white-space: nowrap;
+            text-align: center;
+        }
+        .key-point.show { opacity: 1; }
+        html[lang="en"] .point-box { width: 330px; }
+        html[lang="en"] .key-point {
+            min-width: 178px;
+            font-size: 24px;
+            padding-left: 14px;
+            padding-right: 14px;
+        }
+
+        .ctrl-wrap { margin-top: 24px; text-align: center; display: none; }
+        .ctrl-container {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 120px minmax(0, 1fr);
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .player-ctrl { width: 100%; min-width: 0; padding: 14px 12px; background: #161618; border-radius: 18px; transition: opacity 0.2s; border: 1px solid rgba(255,255,255,0.07); box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+        .player-ctrl.disabled-panel {
+            opacity: 1;
+        }
+
+        /* W / NW / NL / UE 按钮始终常亮可点击，不受发球方限制 */
+        .player-ctrl.disabled-panel .stats-row {
+            opacity: 1 !important;
+        }
+
+        .player-ctrl.disabled-panel .stats-row .stat-sq-btn {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            cursor: pointer !important;
+        }
+
+        /* 非发球方只降低发球区视觉亮度，统计按钮保持常亮 */
+        .player-ctrl.disabled-panel h4,
+        .player-ctrl.disabled-panel .serve-grid {
+            opacity: 0.6;
+        }
+        .ctrl-middle {
+            width: 120px; display: flex; flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 15px;
+            padding-top: 0;
+            margin-top: 0;
+        }
+        .ctrl-middle-spacer {
+            /* matches h4 (approx 21px line-height + 8px margin) + stats-row height (approx 80px) = ~109px */
+            height: 109px;
+            display: flex;
+            align-items: flex-end;
+            width: 100%;
+            justify-content: center;
+        }
+        .net-rate-panel {
+            background: #1c1c1e;
+            border-radius: 14px; padding: 12px 8px; width: 100%;
+            text-align: center; border: 1px solid rgba(255,215,0,0.18);
+            margin-top: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            overflow-wrap: anywhere;
+        }
+        .net-rate-panel div { font-size: 13px; margin: 5px 0; color: #ffd700; }
+        html[lang="en"] .net-rate-panel div { font-size: 12px; line-height: 1.25; }
+        .net-rate-value { font-weight: 700; font-size: 16px; color: #f5f5f7; }
+        /* 全新四合一统计按钮组 (W, NW, NL, UE) */
+        .stats-row {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 18px;
+        }
+        .stat-sq-btn {
+            flex: 1;
+            background: #2a2a2a;
+            border: none;
+            border-radius: 16px;
+            padding: 12px 4px;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+            cursor: pointer;
+            transition: 0.1s linear;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            touch-action: manipulation;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+        .stat-sq-btn span:first-child {
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: 0;
+            min-height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+            width: 100%;
+            font-family: Arial, sans-serif;
+        }
+        .stat-sq-btn .stat-count {
+            font-size: 24px;
+            font-weight: 800;
+            background: rgba(0,0,0,0.5);
+            display: inline-block;
+            width: 100%;
+            border-radius: 20px;
+            padding: 2px 0;
+        }
+        .stat-sq-btn.btn-w-style { background: #9333ea; }
+        .stat-sq-btn.btn-nw-style { background: #28a745; }
+        .stat-sq-btn.btn-nl-style { background: #c62828; }
+        .stat-sq-btn.btn-ue-style { background: #38bdf8; }
+        .stat-sq-btn:active { transform: scale(0.96); }
+
+        /* 发球相关按钮网格 (两行四列，正方形风格) */
+        .serve-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 8px;
+        }
+        .grid-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+        .square-btn {
+            aspect-ratio: 1 / 1;
+            width: 100%;
+            background: #2c2c2e;
+            border: none;
+            border-radius: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            touch-action: manipulation;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            line-height: 1.22;
+            padding: 6px 4px;
+            text-align: center;
+            transition: 0.08s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+        }
+        html[lang="en"] .square-btn {
+            font-size: 16px;
+            line-height: 1.18;
+            padding: 6px 3px;
+        }
+        .square-btn:active { transform: scale(0.94); opacity: 0.88; }
+        .square-btn:disabled { opacity: 0.38; transform: none; cursor: not-allowed; }
+        .btn-ace-special {
+            background: #ff69b4;
+        }
+        .btn-ace-special small {
+            font-size: 14px;
+            font-weight: 600;
+            opacity: 0.9;
+        }
+        html[lang="en"] .btn-ace-special small {
+            font-size: 12px;
+        }
+        .btn-gray-mid { background: #666666; }
+        .btn-green-serve { background: #28a745; }
+        .btn-red-serve { background: #dc3434; }
+        /* 双误按钮颜色改为与一发失误相同的灰色 */
+        .btn-df { background: #666666; }
+
+        .btn-undo {
+            width: 70px; height: 50px;
+            background: #ff9800; color: #fff;
+            border-radius: 14px; border: none;
+            font-weight: 700; cursor: pointer; font-size: 20px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 8px;
+            box-shadow: 0 2px 8px rgba(255,152,0,0.28);
+            transition: opacity 0.15s, transform 0.1s;
+        }
+        .btn-undo:active { opacity: 0.82; transform: scale(0.96); }
+        .sub-controls {
+            display: flex; gap: 10px; justify-content: center;
+            margin-bottom: 24px; flex-wrap: wrap;
+        }
+        .small-btn {
+            padding: 11px 18px; font-size: 15px; font-weight: 500;
+            background: #2c2c2e; color: #f5f5f7;
+            border: none; border-radius: 12px;
+            cursor: pointer; touch-action: manipulation;
+            transition: opacity 0.15s, transform 0.1s;
+        }
+        .small-btn:active { opacity: 0.75; transform: scale(0.97); }
+        .switch-mode-btn {
+            background: #ff9800;
+            color: #000;
+            font-weight: 700;
+        }
+        .record-btn {
+            background: #e91e63;
+            color: white;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+        .record-btn.recording {
+            background: #f44336;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 0.8; }
+            50% { opacity: 1; background-color: #b71c1c; }
+            100% { opacity: 0.8; }
+        }
+        .stats-table {
+            margin-top:20px; width:100%; border-collapse:collapse;
+            background:#111; border-radius:8px; overflow:hidden;
+        }
+        .stats-table th,.stats-table td {
+            padding:12px; text-align:center; border:1px solid #333; font-size:16px;
+        }
+        .stats-table th { background:#222; color:#ffd700; }
+        .stats-table td { color:#fff; vertical-align:top; }
+        
+        body.lock-scroll {
+            overflow: hidden;
+            height: 100vh;
+            touch-action: none;
+        }
+        /* 需求1：隐藏日期和模式状态栏 */
+        .match-info {
+            display: none !important;
+        }
+        .match-finished-badge {
+            background: #b91c1c;
+            padding: 2px 8px;
+            border-radius: 20px;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        @media (max-width: 550px) {
+            .square-btn { font-size: 11px; }
+            .stat-sq-btn .stat-count { font-size: 18px; }
+            .stat-sq-btn span:first-child { font-size: 16px; }
+        }
+        @media (max-width: 760px) {
+            .ctrl-container {
+                grid-template-columns: 1fr;
+            }
+            .ctrl-middle {
+                width: 100%;
+                max-width: 260px;
+                margin: 0 auto;
+            }
+            .ctrl-middle-spacer {
+                height: auto;
+            }
+            .net-rate-panel {
+                margin-top: 0;
+            }
+        }
+        /* 隐藏 NW/NL 按钮的辅助类 */
+        .btn-hidden {
+            display: none !important;
+        }
+
+        .atp-panel {
+            margin-top: 20px; background: #161618;
+            border-radius: 18px; overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.07);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.45);
+        }
+        .atp-panel-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 14px 18px; background: #1c1c1e;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .atp-ph-name {
+            font-size: 15px;
+            font-weight: 900;
+            color: #ffd700;
+            width: 36%;
+        }
+        .atp-ph-name.right { text-align: right; }
+        /* 修改: STATS 文字改为白色 */
+        .atp-ph-center {
+            font-size: 11px;
+            color: #ffffff !important;
+            text-align: center;
+            width: 28%;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        .atp-stat-row {
+            padding: 10px 18px 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .atp-stat-row:last-child { border-bottom: none; }
+        .atp-stat-row.net-hidden { display: none; }
+        .atp-vals {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 5px;
+        }
+        /* 双方数据统计数字强制为白色 (符合需求2) */
+        .atp-panel .atp-v-a,
+        .atp-panel .atp-v-b,
+        .atp-panel .atp-v-a .atp-sub,
+        .atp-panel .atp-v-b .atp-sub {
+            color: #ffffff !important;
+        }
+        .atp-v-a {
+            width: 36%;
+            text-align: left;
+            font-size: 16px;
+            font-weight: bold;
+            line-height: 1.3;
+        }
+        /* 修改: 数据名称标签文字强制白色（ACE、双误、制胜分等） */
+        .atp-v-label {
+            width: 28%;
+            text-align: center;
+            font-size: 11px;
+            color: #ffffff !important;
+            font-weight: bold;
+            letter-spacing: 0.3px;
+            line-height: 1.3;
+        }
+        .atp-v-b {
+            width: 36%;
+            text-align: right;
+            font-size: 16px;
+            font-weight: bold;
+            line-height: 1.3;
+        }
+        .atp-bar {
+            width: 100%;
+            height: 6px;
+            background: #222;
+            border-radius: 3px;
+            display: flex;
+            overflow: hidden;
+        }
+        .atp-bar-half {
+            width: 50%;
+            display: flex;
+        }
+        .atp-bar-half.left { justify-content: flex-end; }
+        .atp-bar-half.right { justify-content: flex-start; }
+        .atp-fill-a {
+            height: 6px;
+            background: linear-gradient(to left, #4fc3f7, #0d6ea8);
+            border-radius: 3px 0 0 3px;
+            transition: width 0.3s ease;
+            min-width: 1px;
+        }
+        .atp-fill-b {
+            height: 6px;
+            background: linear-gradient(to right, #ef5350, #a01010);
+            border-radius: 0 3px 3px 0;
+            transition: width 0.3s ease;
+            min-width: 1px;
+        }
+        .atp-sub {
+            font-size: 10px;
+            color: #aaaaaa;
+            font-weight: normal;
+        }
+        .font-ctrl-group {
+            display: flex; gap: 14px; align-items: center; justify-content: center;
+            background: #1c1c1e; padding: 13px 18px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+        }
+        .font-ctrl-btn {
+            background: #ffd700; border: none; color: #000; font-weight: 700;
+            font-size: 17px; width: 36px; height: 36px; border-radius: 50%;
+            cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+            transition: opacity 0.15s, transform 0.1s; touch-action: manipulation;
+            box-shadow: 0 2px 6px rgba(255,215,0,0.2);
+        }
+        .font-ctrl-btn:active { opacity: 0.8; transform: scale(0.92); }
+        .font-size-value {
+            font-size: 15px; color: #ffd700; min-width: 46px;
+            text-align: center; font-weight: 600;
+        }
+        /* 导出专用临时克隆样式：保证截图整洁 */
+        .export-clone-container {
+            background-color: #000000;
+            padding: 24px 20px;
+            width: 860px;
+            margin: 0 auto;
+        }
+        /* 统计表格上方日期显示专用样式 */
+        .stats-date-header {
+            color: #ffffff;
+            text-align: center;
+            padding: 8px 0;
+            background: #0a0a0a;
+            border-bottom: 1px solid #2a2a2a;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+        }
+
+        /* ── h4 in ctrl panels ── */
+        .player-ctrl h4 {
+            font-size: 13px; font-weight: 600;
+            color: rgba(255,255,255,0.45);
+            letter-spacing: 0.6px; text-transform: uppercase;
+            margin-bottom: 14px; padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+        }
+        .stat-sq-btn { border-radius: 14px !important; }
+
+        /* ═══════ SCOREBOARD THEMES ═══════ */
+        /* ATP (default) */
+        .theme-atp .player { border-bottom-color: #333; }
+        .theme-atp .current-set { background: #ffd700; color: #000; }
+        .theme-atp .past-set { color: #fff; }
+        .theme-atp .winner { color: #ffd700; }
+        .theme-atp .point-main { color: #fff; }
+        .theme-atp .dot { background: #ffd700; }
+        .theme-atp .key-point { color: #ffd700; background: rgba(0,0,0,0.85); }
+
+        /* Australian Open */
+        .theme-ao { background: #003DA5 !important; }
+        .theme-ao .player { border-bottom-color: rgba(255,255,255,0.18); }
+        .theme-ao .name { color: #fff; font-weight: 900; }
+        .theme-ao .current-set { background: #00d4e8 !important; color: #003DA5 !important; font-weight: 900; }
+        .theme-ao .past-set { color: rgba(255,255,255,0.85); }
+        .theme-ao .winner { color: #00d4e8; }
+        .theme-ao .point-main { color: #fff; }
+        .theme-ao .dot { background: #00d4e8; }
+        .theme-ao .key-point { color: #003DA5; background: #00d4e8; font-weight: 900; }
+        .theme-ao .tiebreak-sup { color: rgba(255,255,255,0.8); }
+
+        /* Roland Garros */
+        .theme-rg { background: #1e1e1e !important; border-bottom: 3px solid #C04000 !important; }
+        .theme-rg .player { border-bottom-color: rgba(255,255,255,0.12); }
+        .theme-rg .name { color: #fff; font-weight: 900; }
+        .theme-rg .current-set { background: #C04000 !important; color: #fff !important; font-weight: 900; }
+        .theme-rg .past-set { color: rgba(255,255,255,0.8); }
+        .theme-rg .winner { color: #e86030; }
+        .theme-rg .point-main { color: #fff; }
+        .theme-rg .dot { background: #e86030; }
+        .theme-rg .key-point { color: #fff; background: #C04000; font-weight: 900; }
+        .theme-rg .tiebreak-sup { color: rgba(255,255,255,0.8); }
+
+        /* Wimbledon */
+        .theme-wim { background: #1B5E20 !important; border-bottom: 3px solid #6A0DAD !important; }
+        .theme-wim .player { border-bottom-color: rgba(255,255,255,0.15); }
+        .theme-wim .name { color: #fff; font-weight: 900; }
+        .theme-wim .current-set { background: #6A0DAD !important; color: #fff !important; font-weight: 900; }
+        .theme-wim .past-set { color: rgba(255,255,255,0.85); }
+        .theme-wim .winner { color: #b39ddb; }
+        .theme-wim .point-main { color: #fff; }
+        .theme-wim .dot { background: #b39ddb; }
+        .theme-wim .key-point { color: #fff; background: #6A0DAD; font-weight: 900; }
+        .theme-wim .tiebreak-sup { color: rgba(255,255,255,0.8); }
+
+        /* US Open */
+        .theme-uso { background: #0B1A3B !important; border-bottom: 3px solid #1565C0 !important; }
+        .theme-uso .player { border-bottom-color: rgba(255,255,255,0.12); }
+        .theme-uso .name { color: #fff; font-weight: 900; }
+        .theme-uso .current-set { background: #1565C0 !important; color: #fff !important; font-weight: 900; }
+        .theme-uso .past-set { color: rgba(255,255,255,0.8); }
+        .theme-uso .winner { color: #64b5f6; }
+        .theme-uso .point-main { color: #fff; }
+        .theme-uso .dot { background: #ffd700; }
+        .theme-uso .key-point { color: #0B1A3B; background: #ffd700; font-weight: 900; }
+        .theme-uso .tiebreak-sup { color: rgba(255,255,255,0.8); }
+
+        /* Theme switcher pill bar */
+        .theme-switcher {
+            display: none; justify-content: center;
+            gap: 8px; flex-wrap: wrap;
+            margin-bottom: 12px; padding: 10px 14px;
+            background: #161618; border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.07);
+        }
+        .theme-switcher.visible { display: flex; }
+        .theme-pill {
+            padding: 6px 13px; border-radius: 20px; border: 1px solid transparent;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+            touch-action: manipulation; transition: all 0.18s;
+            background: #2c2c2e; color: rgba(255,255,255,0.6);
+        }
+        .theme-pill:active { transform: scale(0.95); }
+        .theme-pill.tp-atp         { border-color: rgba(255,215,0,0.3); color: #ffd700; }
+        .theme-pill.tp-atp.active  { background: #ffd700; color: #000; border-color: #ffd700; }
+        .theme-pill.tp-ao          { border-color: rgba(0,212,232,0.35); color: #00d4e8; }
+        .theme-pill.tp-ao.active   { background: #00d4e8; color: #003DA5; border-color: #00d4e8; }
+        .theme-pill.tp-rg          { border-color: rgba(192,64,0,0.4); color: #e86030; }
+        .theme-pill.tp-rg.active   { background: #C04000; color: #fff; border-color: #C04000; }
+        .theme-pill.tp-wim         { border-color: rgba(106,13,173,0.45); color: #b39ddb; }
+        .theme-pill.tp-wim.active  { background: #6A0DAD; color: #fff; border-color: #6A0DAD; }
+        .theme-pill.tp-uso         { border-color: rgba(21,101,192,0.45); color: #64b5f6; }
+        .theme-pill.tp-uso.active  { background: #1565C0; color: #fff; border-color: #1565C0; }
+
+        /* ── 统计过滤器标签栏 ── */
+        .stats-filter-bar {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            justify-content: center;
+            padding: 12px 16px 10px;
+            background: #1c1c1e;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .filter-tab {
+            padding: 5px 14px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.12);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            touch-action: manipulation;
+            background: transparent;
+            color: rgba(255,255,255,0.5);
+            transition: all 0.16s ease;
+        }
+        .filter-tab:active { transform: scale(0.95); }
+        .filter-tab.active {
+            background: #ffd700;
+            color: #000;
+            border-color: #ffd700;
+        }
+
+        /* ── 结束比赛按钮 ── */
+        .btn-end-match {
+            background: #2c2c2e;
+            color: #ff453a;
+            border: 1px solid rgba(255,69,58,0.35);
+            font-weight: 700;
+        }
+        .btn-end-match:active { opacity: 0.75; transform: scale(0.97); }
+
+        /* ── 胜利者弹窗 ── */
+        .winner-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(0,0,0,0);
+            backdrop-filter: blur(0px);
+            -webkit-backdrop-filter: blur(0px);
+            align-items: center;
+            justify-content: center;
+            transition: background 0.35s ease, backdrop-filter 0.35s ease;
+        }
+        .winner-overlay.show {
+            display: flex;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .winner-card {
+            background: #1c1c1e;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px;
+            padding: 40px 36px 32px;
+            text-align: center;
+            width: 88%;
+            max-width: 380px;
+            box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+            transform: scale(0.88) translateY(24px);
+            opacity: 0;
+            transition: transform 0.38s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s ease;
+        }
+        .winner-overlay.show .winner-card {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+        }
+        .winner-trophy {
+            font-size: 60px;
+            line-height: 1;
+            margin-bottom: 16px;
+            display: block;
+        }
+        .winner-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.45);
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        .winner-name {
+            font-size: 36px;
+            font-weight: 900;
+            color: #ffd700;
+            letter-spacing: -0.5px;
+            margin-bottom: 6px;
+            line-height: 1.1;
+        }
+        .winner-score {
+            font-size: 16px;
+            color: rgba(255,255,255,0.55);
+            margin-bottom: 28px;
+            font-weight: 500;
+        }
+        .winner-btn-row {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .winner-btn {
+            padding: 12px 22px;
+            border-radius: 14px;
+            border: none;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            touch-action: manipulation;
+            transition: opacity 0.15s, transform 0.1s;
+        }
+        .winner-btn:active { opacity: 0.78; transform: scale(0.96); }
+        .winner-btn-primary {
+            background: #ffd700;
+            color: #000;
+            flex: 1;
+        }
+        .winner-btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.8);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="language-switcher" id="languageSwitcher">
+        <button class="language-btn active" id="langZhBtn" onclick="setLanguage('zh')">中文</button>
+        <button class="language-btn" id="langEnBtn" onclick="setLanguage('en')">English</button>
+    </div>
+
+    <!-- 界面1：设置姓名面板 -->
+    <div class="setup" id="setupBox">
+        <input id="pA" placeholder="球员A" value="QIAO">
+        <input id="pB" placeholder="球员B" value="球员B">
+        <div style="display:flex; flex-wrap:wrap; align-items:center; margin-top:8px;">
+            <label style="width:25%;">📅 比赛日期</label>
+            <input type="date" id="matchDate" style="width:70%;">
+        </div>
+        <div style="display:flex; flex-wrap:wrap; align-items:center; margin-top:8px;">
+            <label style="width:25%;">🎾 比赛模式</label>
+            <select id="matchMode" style="width:70%;" class="mode-select">
+                <option value="custom">自定义 (现有规则/无限盘)</option>
+                <option value="oneSet">1盘制胜</option>
+                <option value="threeTwo">3盘2胜</option>
+                <option value="fiveThree">5盘3胜</option>
+                <option value="tiebreak">抢七 (直接抢七决胜)</option>
+                <option value="superTiebreak">抢十制胜 (直接抢十决胜)</option>
+            </select>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; align-items:center; margin-top:8px;">
+            <label style="width:25%;">🏁 决胜盘规则</label>
+            <select id="decidingSetRule" style="width:70%;" class="mode-select">
+                <option value="super">决胜盘抢十</option>
+                <option value="normal">决胜盘普通抢七</option>
+            </select>
+        </div>
+        <div class="setup-btn-group">
+            <button onclick="startMatch()">开始比赛</button>
+            <button id="continueMatchBtn" style="display:none;" onclick="continueMatch()">继续比赛</button>
+        </div>
+    </div>
+
+    <!-- 比分板主题切换器 -->
+    <div class="theme-switcher" id="themeSwitcher">
+        <button class="theme-pill tp-atp active" onclick="setTheme('atp')">ATP</button>
+        <button class="theme-pill tp-ao"          onclick="setTheme('ao')">🇦🇺 澳网</button>
+        <button class="theme-pill tp-rg"          onclick="setTheme('rg')">🎾 法网</button>
+        <button class="theme-pill tp-wim"         onclick="setTheme('wim')">🌿 温网</button>
+        <button class="theme-pill tp-uso"         onclick="setTheme('uso')">🌃 美网</button>
+    </div>
+
+    <!-- 界面2：比分板区域 -->
+    <div class="scoreboard theme-atp" id="scoreboard">
+        <div class="player">
+            <div class="serve-dot"><div class="dot" id="dotA"></div></div>
+            <div class="name" id="nameA">球员A</div>
+            <div class="sets" id="setsA"></div>
+            <div class="point-box">
+                <div class="point-main" id="pointA">0</div>
+                <div class="key-point" id="keyPointA"></div>
+            </div>
+        </div>
+        <div class="player">
+            <div class="serve-dot"><div class="dot" id="dotB"></div></div>
+            <div class="name" id="nameB">球员B</div>
+            <div class="sets" id="setsB"></div>
+            <div class="point-box">
+                <div class="point-main" id="pointB">0</div>
+                <div class="key-point" id="keyPointB"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="ctrl-wrap" id="ctrlWrap">
+        <div class="ctrl-container">
+            <!-- 球员A 操作面板 -->
+            <div class="player-ctrl" id="playerCtrlA">
+                <h4 id="ctrlTitleA">球员A 操作</h4>
+                <!-- W / NW / NL / UE 四个带数字按钮 -->
+                <div class="stats-row" id="statsRowA">
+                    <button class="stat-sq-btn btn-w-style" id="statWA" onclick="addW('A')"><span>W</span><span class="stat-count" id="statWCountA">0</span></button>
+                    <button class="stat-sq-btn btn-nw-style" id="statNWA" onclick="addNW('A')"><span>NW</span><span class="stat-count" id="statNWCountA">0</span></button>
+                    <button class="stat-sq-btn btn-nl-style" id="statNLA" onclick="addNL('A')"><span>NL</span><span class="stat-count" id="statNLCountA">0</span></button>
+                    <button class="stat-sq-btn btn-ue-style" id="statUEA" onclick="addUE('A')"><span>UE</span><span class="stat-count" id="statUECountA">0</span></button>
+                </div>
+                <!-- 发球区: 两行四列 -->
+                <div class="serve-grid">
+                    <div class="grid-row">
+                        <button class="square-btn btn-ace-special" id="firstAceA" onclick="firstServeAce('A')">一发<br><small>ACE</small></button>
+                        <button class="square-btn btn-gray-mid" onclick="serveFault('A')">一发<br>失误</button>
+                        <button class="square-btn btn-green-serve" id="firstWinA" onclick="firstWin('A')">一发<br>得分</button>
+                        <button class="square-btn btn-red-serve" id="firstLoseA" onclick="firstLose('A')">一发<br>丢分</button>
+                    </div>
+                    <div class="grid-row">
+                        <button class="square-btn btn-ace-special" id="secondAceA" onclick="secondServeAce('A')" disabled>二发<br><small>ACE</small></button>
+                        <button class="square-btn btn-df" onclick="doubleFault('A')">双误</button>
+                        <button class="square-btn btn-green-serve" onclick="secondWin('A')">二发<br>得分</button>
+                        <button class="square-btn btn-red-serve" onclick="secondLose('A')">二发<br>丢分</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 中间区域: 撤销 + 上网得分率实时显示 -->
+            <div class="ctrl-middle">
+                <div class="ctrl-middle-spacer">
+                    <button class="btn-undo" onclick="undoStep()">撤销</button>
+                </div>
+                <div class="net-rate-panel" id="netRatePanel">
+                    <div>🏐 上网得分率</div>
+                    <div id="netRateA">QIAO: 0% (0/0)</div>
+                    <div id="netRateB">球员B: 0% (0/0)</div>
+                </div>
+            </div>
+
+            <!-- 球员B 操作面板 -->
+            <div class="player-ctrl" id="playerCtrlB">
+                <h4 id="ctrlTitleB">球员B 操作</h4>
+                <div class="stats-row" id="statsRowB">
+                    <button class="stat-sq-btn btn-w-style" id="statWB" onclick="addW('B')"><span>W</span><span class="stat-count" id="statWCountB">0</span></button>
+                    <button class="stat-sq-btn btn-nw-style" id="statNWB" onclick="addNW('B')"><span>NW</span><span class="stat-count" id="statNWCountB">0</span></button>
+                    <button class="stat-sq-btn btn-nl-style" id="statNLB" onclick="addNL('B')"><span>NL</span><span class="stat-count" id="statNLCountB">0</span></button>
+                    <button class="stat-sq-btn btn-ue-style" id="statUEB" onclick="addUE('B')"><span>UE</span><span class="stat-count" id="statUECountB">0</span></button>
+                </div>
+                <div class="serve-grid">
+                    <div class="grid-row">
+                        <button class="square-btn btn-ace-special" id="firstAceB" onclick="firstServeAce('B')">一发<br><small>ACE</small></button>
+                        <button class="square-btn btn-gray-mid" onclick="serveFault('B')">一发<br>失误</button>
+                        <button class="square-btn btn-green-serve" id="firstWinB" onclick="firstWin('B')">一发<br>得分</button>
+                        <button class="square-btn btn-red-serve" id="firstLoseB" onclick="firstLose('B')">一发<br>丢分</button>
+                    </div>
+                    <div class="grid-row">
+                        <button class="square-btn btn-ace-special" id="secondAceB" onclick="secondServeAce('B')" disabled>二发<br><small>ACE</small></button>
+                        <button class="square-btn btn-df" onclick="doubleFault('B')">双误</button>
+                        <button class="square-btn btn-green-serve" onclick="secondWin('B')">二发<br>得分</button>
+                        <button class="square-btn btn-red-serve" onclick="secondLose('B')">二发<br>丢分</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sub-controls">
+            <button class="small-btn" onclick="switchServer()">切换发球方</button>
+            <button class="small-btn" onclick="resetGameOnly()">重置本局</button>
+            <button onclick="enterTiebreak()" class="small-btn">进入抢七(6:6)</button>
+            <button class="small-btn" onclick="resetAllMatch()">整场重新开始</button>
+            <button class="small-btn" id="toggleNetStatsBtn" onclick="toggleNetStatsVisibility()">🙈 隐藏上网统计</button>
+            <button class="small-btn btn-end-match" id="endMatchBtn" onclick="endMatchManually()">🔚 结束比赛</button>
+            <button class="small-btn switch-mode-btn" id="switchToSetupBtn" style="display:none;" onclick="switchToSetup()">✏️ 切换设置界面</button>
+            <button class="small-btn" id="lockScreenBtn" onclick="toggleLockScreen()">🔒 锁屏</button>
+            <button class="small-btn record-btn" id="recordScreenBtn" onclick="toggleScreenRecording()">🎥 开始录屏</button>
+            <!-- 新增导出图片按钮 需求2 -->
+            <button class="small-btn" id="exportImageBtn" onclick="exportScoreboardStatsImage()">📸 导出JPEG图片</button>
+            <button class="small-btn" id="saveMatchFileBtn" onclick="saveMatchFile()">💾 保存比赛文件</button>
+            <button class="small-btn" id="copyStatsBtn" onclick="copyStatsToClipboard()">📋 复制统计</button>
+        </div>
+
+        <div class="match-info" id="matchInfoBar">
+            <span id="displayDate">日期: 2026-05-16</span>
+            <span id="displayMode">模式: 自定义</span>
+            <span id="matchWinnerBadge" style="display:none;" class="match-finished-badge">🏆 比赛结束</span>
+        </div>
+
+        <!-- ATP风格统计面板 (替换旧table) -->
+        <div class="atp-panel">
+            <!-- 新增：统计表格上方显示比赛日期（符合要求1） -->
+            <div id="statsDateDisplay" class="stats-date-header">比赛日期: --</div>
+            <div class="stats-filter-bar" id="statsFilterBar">
+                <button class="filter-tab active" id="filterTabAll" onclick="setStatsFilter('all')">全场</button>
+            </div>
+            <div class="atp-panel-header">
+                <div class="atp-ph-name" id="atpNameA">QIAO</div>
+                <div class="atp-ph-center" id="atpPanelCenter">STATS</div>
+                <div class="atp-ph-name right" id="atpNameB">球员B</div>
+            </div>
+            <div id="atpBody"></div>
+            <!-- 字体控制按钮组：移至统计表格下方 -->
+            <div class="font-ctrl-group">
+                <button class="font-ctrl-btn" id="fontMinusBtn" title="缩小统计字体">A-</button>
+                <span class="font-size-value" id="statsFontSizeLabel">16px</span>
+                <button class="font-ctrl-btn" id="fontPlusBtn" title="放大统计字体">A+</button>
+            </div>
+        </div>
+        <!-- 隐藏table保留所有id供JS写入，不影响任何现有逻辑 -->
+        <div style="display:none">
+            <span id="aceCountA"></span><span id="aceCountB"></span>
+            <span id="firstAceCountA"></span><span id="secondAceCountA"></span>
+            <span id="firstAceCountB"></span><span id="secondAceCountB"></span>
+            <span id="doubleFaultCountA"></span><span id="doubleFaultCountB"></span>
+            <span id="winnerCountA"></span><span id="winnerCountB"></span>
+            <span id="ueCountA"></span><span id="ueCountB"></span>
+            <span id="netSuccessRateA"></span><span id="netSuccessRateB"></span>
+            <span id="firstInRateA"></span><span id="firstInRateB"></span>
+            <span id="firstWinRateA"></span><span id="firstWinRateB"></span>
+            <span id="secondWinRateA"></span><span id="secondWinRateB"></span>
+            <span id="sgRateA"></span><span id="sgRateB"></span>
+            <span id="breakPointRateA"></span><span id="breakPointRateB"></span>
+            <span id="setPointsA"></span><span id="setPointsB"></span>
+            <span id="totalAllPoints"></span>
+            <span id="statsHeaderA"></span><span id="statsHeaderB"></span>
+            <span id="netSuccessRow"></span>
+        </div>
+    </div>
+
+<script>
+// ---------- 全局变量 ----------
+let wA=0,wB=0, ueA=0,ueB=0, firstWinA=0,firstWinB=0, firstLoseA=0,firstLoseB=0, secondWinA=0,secondWinB=0, secondLoseA=0,secondLoseB=0;
+let pA=0,pB=0, gA=0,gB=0, server='A', setList=[], tieA=0,tieB=0, inTie=false, snap=null, undoHistory=[];
+let playerAName='QIAO', playerBName='球员B', serviceGames=[], breakCountA=0,breakCountB=0, breakPointTotalA=0,breakPointTotalB=0,lastCalcBreakPoint=0;
+let setScores=[], currentSetPointsA=0,currentSetPointsB=0, serveFaultCountA=0,serveFaultCountB=0;
+let aceCountA=0,aceCountB=0, firstAceCountA=0,firstAceCountB=0, secondAceCountA=0,secondAceCountB=0, doubleFaultCountA=0,doubleFaultCountB=0;
+let thirtyThirtyWonA=0,thirtyThirtyWonB=0,thirtyThirtyOppA=0,thirtyThirtyOppB=0;
+let deuceWonA=0,deuceWonB=0,deuceOppA=0,deuceOppB=0;
+let loveHoldA=0,loveHoldB=0,loveBreakA=0,loveBreakB=0;
+let servePhaseA=1, servePhaseB=1, tiePointNum=0, tiebreakFirstReceiver=null, lastSetLastGameServer=null, matchStarted=false, isScreenLocked=false;
+let matchFinished = false, matchWinner = null, currentMatchMode = "custom", maxWins = 99, useSuperTiebreakForDeciding = false, decidingSetRule = "super", tiebreakTargetScore = 7;
+// 上网统计
+let netWonA=0, netLostA=0, netWonB=0, netLostB=0;
+// 控制NW/NL按钮及上网统计行是否可见（默认可见）
+let netStatsVisible = true;
+const MAX_UNDO_STEPS = 10;
+
+let currentLanguage = 'zh';
+const LANG = {
+    zh: {
+        htmlLang: 'zh-CN',
+        title: 'ATP网球比分板 专业版',
+        playerAPlaceholder: '球员A',
+        playerBPlaceholder: '球员B',
+        defaultPlayerA: 'QIAO',
+        defaultPlayerB: '球员B',
+        matchDate: '📅 比赛日期',
+        matchMode: '🎾 比赛模式',
+        decidingSetRule: '🏁 决胜盘规则',
+        startMatch: '开始比赛',
+        continueMatch: '继续比赛',
+        modes: {
+            custom: '自定义 (现有规则/无限盘)',
+            oneSet: '1盘制胜',
+            threeTwo: '3盘2胜',
+            fiveThree: '5盘3胜',
+            tiebreak: '抢七 (直接抢七决胜)',
+            superTiebreak: '抢十制胜 (直接抢十决胜)'
+        },
+        modeDisplay: {
+            custom: '模式: 自定义/无限盘',
+            oneSet: '模式: 1盘制胜',
+            threeTwo: '模式: 3盘2胜',
+            fiveThree: '模式: 5盘3胜',
+            tiebreak: '模式: 直接抢七',
+            superTiebreak: '模式: 直接抢十'
+        },
+        decidingSetRules: {
+            super: '决胜盘抢十',
+            normal: '决胜盘普通抢七'
+        },
+        dateDisplay: '日期',
+        statsDate: '📅 比赛日期',
+        action: '操作',
+        firstServeAce: '一发<br><small>ACE</small>',
+        firstFault: '一发<br>失误',
+        firstWin: '一发<br>得分',
+        firstLose: '一发<br>丢分',
+        secondServeAce: '二发<br><small>ACE</small>',
+        doubleFault: '双误',
+        secondWin: '二发<br>得分',
+        secondLose: '二发<br>丢分',
+        undo: '撤销',
+        netRate: '🏐 上网得分率',
+        switchServer: '切换发球方',
+        resetGame: '重置本局',
+        enterTiebreak: '进入抢七(6:6)',
+        resetMatch: '整场重新开始',
+        hideNet: '🙈 隐藏上网统计',
+        showNet: '显示上网统计',
+        endMatch: '结束比赛',
+        switchSetup: '切换设置界面',
+        lock: '锁屏',
+        unlock: '解锁',
+        startRecording: '开始录屏',
+        stopRecording: '停止录屏',
+        exportImage: '导出JPEG图片',
+        saveMatchFile: '保存比赛文件',
+        copyStats: '复制统计',
+        copied: '已复制',
+        themeAO: '澳网',
+        themeRG: '法网',
+        themeWIM: '温网',
+        themeUSO: '美网',
+        all: '全场',
+        setN: n => `第${n}盘`,
+        setPoints: n => `第${n}盘得分`,
+        stats: 'STATS',
+        aceFirstSecond: (first, second) => `一发:${first} 二发:${second}`,
+        statsLabels: {
+            ace: 'ACE',
+            doubleFault: '双误',
+            winner: '制胜分',
+            ue: '非受迫失误',
+            net: '上网成功率',
+            firstIn: '一发进球率',
+            firstWin: '一发得分率',
+            secondWin: '二发得分率',
+            serviceGames: '发球局胜率',
+            breakPoint: '破发点',
+            thirtyThirty: '30:30',
+            deucePoint: '40:40 / Deuce',
+            loveHold: 'Love Hold',
+            loveBreak: 'Love Break',
+            total: '总得分'
+        },
+        pointLabels: { game: '局点', break: '破发点', set: '盘点', match: '赛点' },
+        winnerBadge: name => `🏆 ${name} 获胜`,
+        finishedBadge: '🏆 比赛结束',
+        winnerLabel: '比赛结束',
+        winnerText: name => `${name} 获胜`,
+        done: '完成',
+        copyTitle: '🎾 比赛统计',
+        metric: '指标',
+        score: '盘分',
+        currentSet: '当前盘',
+        tiebreakScore: '抢七',
+        copyFailed: '复制失败，请手动复制',
+        saveNeedStart: '请先开始比赛再保存比赛文件',
+        saveFileFail: '保存比赛文件失败',
+        needStartExport: '请先开始比赛再进行导出',
+        exportFail: '导出失败',
+        imageFail: '生成图片失败',
+        recordingNeedStart: '请先开始比赛再进行录屏',
+        recordingAfterFinish: '比赛已结束，请重置或开始新比赛后再录屏',
+        scoreboardMissing: '无法找到比分板区域',
+        confirmRestart: '确定要整场重新开始吗？当前比分和统计会被清空。',
+        confirmEndMatch: '确定要结束比赛吗？'
+    },
+    en: {
+        htmlLang: 'en',
+        title: 'ATP Tennis Scoreboard Pro',
+        playerAPlaceholder: 'Player A',
+        playerBPlaceholder: 'Player B',
+        defaultPlayerA: 'QIAO',
+        defaultPlayerB: 'Player B',
+        matchDate: '📅 Match Date',
+        matchMode: '🎾 Match Format',
+        decidingSetRule: '🏁 Deciding Set Rule',
+        startMatch: 'Start Match',
+        continueMatch: 'Continue',
+        modes: {
+            custom: 'Custom (current rules/unlimited sets)',
+            oneSet: 'Best of 1 Set',
+            threeTwo: 'Best of 3 Sets',
+            fiveThree: 'Best of 5 Sets',
+            tiebreak: 'Tiebreak (first to 7)',
+            superTiebreak: 'Super Tiebreak (first to 10)'
+        },
+        modeDisplay: {
+            custom: 'Mode: Custom/Unlimited',
+            oneSet: 'Mode: Best of 1 Set',
+            threeTwo: 'Mode: Best of 3 Sets',
+            fiveThree: 'Mode: Best of 5 Sets',
+            tiebreak: 'Mode: Tiebreak to 7',
+            superTiebreak: 'Mode: Super Tiebreak to 10'
+        },
+        decidingSetRules: {
+            super: 'Deciding set: super tiebreak to 10',
+            normal: 'Deciding set: normal tiebreak to 7'
+        },
+        dateDisplay: 'Date',
+        statsDate: '📅 Match Date',
+        action: 'Controls',
+        firstServeAce: '1st Serve<br><small>ACE</small>',
+        firstFault: '1st Serve<br>Fault',
+        firstWin: '1st Serve<br>Won',
+        firstLose: '1st Serve<br>Lost',
+        secondServeAce: '2nd Serve<br><small>ACE</small>',
+        doubleFault: 'Double Fault',
+        secondWin: '2nd Serve<br>Won',
+        secondLose: '2nd Serve<br>Lost',
+        undo: 'Undo',
+        netRate: '🏐 Net Points Won',
+        switchServer: 'Switch Server',
+        resetGame: 'Reset Game',
+        enterTiebreak: 'Enter Tiebreak (6-6)',
+        resetMatch: 'Restart Match',
+        hideNet: 'Hide Net Stats',
+        showNet: 'Show Net Stats',
+        endMatch: 'End Match',
+        switchSetup: 'Edit Setup',
+        lock: 'Lock',
+        unlock: 'Unlock',
+        startRecording: 'Start Recording',
+        stopRecording: 'Stop Recording',
+        exportImage: 'Export JPEG',
+        saveMatchFile: 'Save Match File',
+        copyStats: 'Copy Stats',
+        copied: 'Copied',
+        themeAO: 'Australian Open',
+        themeRG: 'Roland Garros',
+        themeWIM: 'Wimbledon',
+        themeUSO: 'US Open',
+        all: 'Match',
+        setN: n => `Set ${n}`,
+        setPoints: n => `Set ${n} Points`,
+        stats: 'STATS',
+        aceFirstSecond: (first, second) => `1st:${first} 2nd:${second}`,
+        statsLabels: {
+            ace: 'ACE',
+            doubleFault: 'Double Faults',
+            winner: 'Winners',
+            ue: 'Unforced Errors',
+            net: 'Net Points Won',
+            firstIn: '1st Serve In',
+            firstWin: '1st Serve Won',
+            secondWin: '2nd Serve Won',
+            serviceGames: 'Service Games Won',
+            breakPoint: 'Break Points',
+            thirtyThirty: '30:30',
+            deucePoint: '40:40 / Deuce',
+            loveHold: 'Love Hold',
+            loveBreak: 'Love Break',
+            total: 'Total Points'
+        },
+        pointLabels: { game: 'Game Point', break: 'Break Point', set: 'Set Point', match: 'Match Point' },
+        winnerBadge: name => `🏆 ${name} wins`,
+        finishedBadge: '🏆 Match Finished',
+        winnerLabel: 'Match Finished',
+        winnerText: name => `${name} wins`,
+        done: 'Done',
+        copyTitle: '🎾 Match Stats',
+        metric: 'Metric',
+        score: 'Score',
+        currentSet: 'Current Set',
+        tiebreakScore: 'Tiebreak',
+        copyFailed: 'Copy failed. Please copy manually.',
+        saveNeedStart: 'Please start the match before saving a match file.',
+        saveFileFail: 'Failed to save match file.',
+        needStartExport: 'Please start the match before exporting.',
+        exportFail: 'Export failed.',
+        imageFail: 'Image generation failed.',
+        recordingNeedStart: 'Please start the match before recording.',
+        recordingAfterFinish: 'The match is finished. Please reset or start a new match before recording.',
+        scoreboardMissing: 'Scoreboard area not found.',
+        confirmRestart: 'Restart the whole match? Current score and stats will be cleared.',
+        confirmEndMatch: 'End this match now?'
+    }
+};
+function tr(key) {
+    return key.split('.').reduce((obj, part) => obj && obj[part], LANG[currentLanguage]);
+}
+function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.innerText = value;
+}
+function setHTML(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = value;
+}
+function setButtonsByOnclick(onclickValue, html) {
+    document.querySelectorAll(`button[onclick="${onclickValue}"]`).forEach(btn => btn.innerHTML = html);
+}
+function updateServeButtonLabels() {
+    ['A','B'].forEach(function(player) {
+        setHTML('firstAce' + player, tr('firstServeAce'));
+        setButtonsByOnclick(`serveFault('${player}')`, tr('firstFault'));
+        setHTML('firstWin' + player, tr('firstWin'));
+        setHTML('firstLose' + player, tr('firstLose'));
+        setHTML('secondAce' + player, tr('secondServeAce'));
+        setButtonsByOnclick(`doubleFault('${player}')`, tr('doubleFault'));
+        setButtonsByOnclick(`secondWin('${player}')`, tr('secondWin'));
+        setButtonsByOnclick(`secondLose('${player}')`, tr('secondLose'));
+    });
+}
+function applyLanguage() {
+    const L = LANG[currentLanguage];
+    document.documentElement.lang = L.htmlLang;
+    document.title = L.title;
+    document.getElementById('langZhBtn')?.classList.toggle('active', currentLanguage === 'zh');
+    document.getElementById('langEnBtn')?.classList.toggle('active', currentLanguage === 'en');
+    document.getElementById('pA')?.setAttribute('placeholder', L.playerAPlaceholder);
+    document.getElementById('pB')?.setAttribute('placeholder', L.playerBPlaceholder);
+    document.querySelector('label[for="matchDate"]');
+    const setupLabels = document.querySelectorAll('.setup label');
+    if (setupLabels[0]) setupLabels[0].innerText = L.matchDate;
+    if (setupLabels[1]) setupLabels[1].innerText = L.matchMode;
+    if (setupLabels[2]) setupLabels[2].innerText = L.decidingSetRule;
+    Object.keys(L.modes).forEach(function(mode) {
+        const opt = document.querySelector(`#matchMode option[value="${mode}"]`);
+        if (opt) opt.textContent = L.modes[mode];
+    });
+    Object.keys(L.decidingSetRules).forEach(function(rule) {
+        const opt = document.querySelector(`#decidingSetRule option[value="${rule}"]`);
+        if (opt) opt.textContent = L.decidingSetRules[rule];
+    });
+    const startBtn = document.querySelector('.setup-btn-group button[onclick="startMatch()"]');
+    if (startBtn) startBtn.innerText = L.startMatch;
+    setText('continueMatchBtn', L.continueMatch);
+    document.querySelector('.theme-pill.tp-ao') && (document.querySelector('.theme-pill.tp-ao').innerText = '🇦🇺 ' + L.themeAO);
+    document.querySelector('.theme-pill.tp-rg') && (document.querySelector('.theme-pill.tp-rg').innerText = '🎾 ' + L.themeRG);
+    document.querySelector('.theme-pill.tp-wim') && (document.querySelector('.theme-pill.tp-wim').innerText = '🌿 ' + L.themeWIM);
+    document.querySelector('.theme-pill.tp-uso') && (document.querySelector('.theme-pill.tp-uso').innerText = '🌃 ' + L.themeUSO);
+    updateServeButtonLabels();
+    setText('toggleNetStatsBtn', netStatsVisible ? L.hideNet : L.showNet);
+    setText('endMatchBtn', L.endMatch);
+    setText('switchToSetupBtn', L.switchSetup);
+    setText('lockScreenBtn', isScreenLocked ? L.unlock : L.lock);
+    setText('recordScreenBtn', isRecording ? L.stopRecording : L.startRecording);
+    setText('exportImageBtn', L.exportImage);
+    setText('saveMatchFileBtn', L.saveMatchFile);
+    setText('copyStatsBtn', L.copyStats);
+    const dateValue = document.getElementById('matchDate')?.value || '--';
+    setText('displayDate', `${L.dateDisplay}: ${dateValue}`);
+    const badge = document.getElementById('matchWinnerBadge');
+    if (badge) {
+        if (matchFinished && matchWinner) {
+            badge.innerHTML = L.winnerBadge(matchWinner === 'A' ? playerAName : playerBName);
+        } else {
+            badge.innerHTML = L.finishedBadge;
+        }
+    }
+    setHTML('netRatePanel', `<div>${L.netRate}</div><div id="netRateA"></div><div id="netRateB"></div>`);
+    setText('winnerLabel', L.winnerLabel);
+    setText('winnerDoneBtn', L.done);
+    setText('winnerUndoBtn', L.undo);
+    document.querySelector('.btn-undo') && (document.querySelector('.btn-undo').innerText = L.undo);
+    setButtonsByOnclick('switchServer()', L.switchServer);
+    setButtonsByOnclick('resetGameOnly()', L.resetGame);
+    setButtonsByOnclick('enterTiebreak()', L.enterTiebreak);
+    setButtonsByOnclick('resetAllMatch()', L.resetMatch);
+    applyMatchModeSetting(document.getElementById('matchMode')?.value || currentMatchMode);
+    refreshAllNamesUI();
+    renderBoard();
+    updateStats();
+    refreshStatShow();
+}
+function setLanguage(lang) {
+    if (!LANG[lang]) return;
+    currentLanguage = lang;
+    applyLanguage();
+}
+
+// 更新统计表格上方的日期显示 (新增功能)
+function updateStatsDateDisplay() {
+    let dateInput = document.getElementById('matchDate');
+    let displayDiv = document.getElementById('statsDateDisplay');
+    if (dateInput && displayDiv) {
+        let selectedDate = dateInput.value;
+        if (selectedDate) {
+            displayDiv.innerText = `${tr('statsDate')}: ${selectedDate}`;
+        } else {
+            displayDiv.innerText = `${tr('statsDate')}: --`;
+        }
+    }
+}
+
+// 设置默认日期为当日 (需求2)
+function setDefaultDateToday() {
+    const dateInput = document.getElementById('matchDate');
+    if (dateInput) {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        dateInput.value = `${yyyy}-${mm}-${dd}`;
+        // 同步显示
+        updateStatsDateDisplay();
+    }
+}
+
+// 统计表格字体大小控制
+let currentStatsFontSize = 16;  
+function applyStatsFontSize() {
+    const styleId = 'dynamicStatsFontStyle';
+    let oldStyle = document.getElementById(styleId);
+    if (oldStyle) oldStyle.remove();
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+        .atp-panel .atp-v-a,
+        .atp-panel .atp-v-b,
+        .atp-panel .atp-v-label,
+        .atp-panel .atp-sub,
+        .atp-panel .atp-ph-name,
+        .atp-panel .atp-ph-center {
+            font-size: ${currentStatsFontSize}px !important;
+        }
+        .atp-bar, .atp-fill-a, .atp-fill-b {
+            font-size: 0 !important;
+        }
+    `;
+    document.head.appendChild(style);
+    document.getElementById('statsFontSizeLabel').innerText = currentStatsFontSize + 'px';
+}
+function changeStatsFontSize(delta) {
+    let newSize = currentStatsFontSize + delta;
+    if (newSize < 12) newSize = 12;
+    if (newSize > 28) newSize = 28;
+    currentStatsFontSize = newSize;
+    applyStatsFontSize();
+}
+
+// ----- 新增：根据一发/二发阶段精准控制发球按钮禁用状态 (修复一发失误后按钮状态) -----
+function updateServeButtonsState(player) {
+    // player: 'A' 或 'B'
+    const panel = document.getElementById(`playerCtrl${player}`);
+    if (!panel) return;
+    const isServing = (server === player);
+    // 如果当前不是发球方，整个面板应处于禁用状态（由 syncPanelsByServer 处理 opacity 和 pointer-events，但按钮需要真正 disabled）
+    // 为了精确，无论是否发球方，我们都设置按钮的 disabled 属性
+    const phase = (player === 'A') ? servePhaseA : servePhaseB;
+    // 获取该面板中 .serve-grid 下的所有按钮 (共8个)
+    const serveGrid = panel.querySelector('.serve-grid');
+    if (!serveGrid) return;
+    const btns = serveGrid.querySelectorAll('.square-btn');
+    if (btns.length !== 8) return;
+    // 索引：0:一发ACE, 1:一发失误, 2:一发得分, 3:一发丢分, 4:二发ACE, 5:双误, 6:二发得分, 7:二发丢分
+    // 一发相关按钮: 0,2,3  (一发失误按钮永远可点，但应根据发球方和比赛状态)
+    // 二发相关按钮: 4,5,6,7
+    const isMyServe = (server === player);
+    if (!isMyServe || matchFinished) {
+        // 非发球方或比赛结束，所有按钮禁用
+        btns.forEach(btn => btn.disabled = true);
+        return;
+    }
+    // 是发球方且比赛未结束
+    if (phase === 1) {
+        // 一发阶段：一发相关按钮启用（包含一发ACE、一发得分、一发丢分），一发失误按钮启用；二发相关按钮全部禁用
+        btns[0].disabled = false;  // 一发ACE
+        btns[1].disabled = false;  // 一发失误 (始终可点)
+        btns[2].disabled = false;  // 一发得分
+        btns[3].disabled = false;  // 一发丢分
+        btns[4].disabled = true;   // 二发ACE
+        btns[5].disabled = true;   // 双误
+        btns[6].disabled = true;   // 二发得分
+        btns[7].disabled = true;   // 二发丢分
+    } else { // phase === 2
+        // 二发阶段：一发相关按钮全部禁用，二发相关按钮全部启用
+        btns[0].disabled = true;
+        btns[1].disabled = false;  // 一发失误理论上已经不会出现（因为已经二发），但保持可点不会有副作用（再次点击会重复记一发失误？需要避免，但逻辑上serveFault内部会判断phase并增加二发次数，应加保护。但为了安全，一发失误按钮在二发阶段也应禁用，避免重复错误统计）
+        btns[1].disabled = true;   // 二发阶段不应再点“一发失误”，禁用
+        btns[2].disabled = true;
+        btns[3].disabled = true;
+        btns[4].disabled = false;  // 二发ACE
+        btns[5].disabled = false;  // 双误
+        btns[6].disabled = false;  // 二发得分
+        btns[7].disabled = false;  // 二发丢分
+    }
+}
+
+// 修改 syncPanelsByServer，保留原有面板禁用样式，同时调用精确按钮状态更新
+function syncPanelsByServer() {
+    if(matchFinished) return;
+    const panelA = document.getElementById('playerCtrlA');
+    const panelB = document.getElementById('playerCtrlB');
+    const isServerA = (server === 'A');
+    // 设置面板透明度样式（视觉反馈）
+    if (isServerA) {
+        panelA.classList.remove('disabled-panel');
+        panelB.classList.add('disabled-panel');
+    } else {
+        panelB.classList.remove('disabled-panel');
+        panelA.classList.add('disabled-panel');
+    }
+    // 更新按钮禁用状态
+    updateServeButtonsState('A');
+    updateServeButtonsState('B');
+}
+
+// 确保 serveFault 后，二发阶段按钮正确启用；且一发阶段按钮被禁用
+// 原有 serveFault 已调用 syncPanelsByServer，无需额外修改
+
+// 修改导出图片文件名：日期-球员名 (格式: YYYY-MM-DD_球员A_vs_球员B.jpg)
+async function exportScoreboardStatsImage() {
+    if (!document.getElementById('scoreboard') || document.getElementById('scoreboard').style.display !== 'block') {
+        alert(tr('needStartExport'));
+        return;
+    }
+    const originalScoreboard = document.getElementById('scoreboard');
+    const originalAtpPanel = document.querySelector('.atp-panel');
+    if (!originalScoreboard || !originalAtpPanel) return;
+    
+    const cloneScoreboard = originalScoreboard.cloneNode(true);
+    const cloneAtpPanel = originalAtpPanel.cloneNode(true);
+    const fontGroup = cloneAtpPanel.querySelector('.font-ctrl-group');
+    if (fontGroup) fontGroup.remove();
+    
+    const container = document.createElement('div');
+    container.className = 'export-clone-container';
+    container.style.backgroundColor = '#000000';
+    container.style.padding = '20px';
+    container.style.width = '860px';
+    container.style.margin = '0 auto';
+    container.appendChild(cloneScoreboard);
+    container.appendChild(cloneAtpPanel);
+    
+    container.style.position = 'fixed';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.zIndex = '-9999';
+    document.body.appendChild(container);
+    
+    try {
+        const canvas = await html2canvas(container, {
+            scale: 3,
+            backgroundColor: '#000000',
+            logging: false,
+            useCORS: false,
+            allowTaint: false
+        });
+        const targetWidth = 3000;
+        const targetHeight = 4000;
+        const finalCanvas = document.createElement('canvas');
+        finalCanvas.width = targetWidth;
+        finalCanvas.height = targetHeight;
+        const ctx = finalCanvas.getContext('2d');
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, targetWidth, targetHeight);
+        
+        const srcW = canvas.width;
+        const srcH = canvas.height;
+        const scaleW = targetWidth / srcW;
+        const scaleH = targetHeight / srcH;
+        const scale = Math.min(scaleW, scaleH);
+        const drawW = srcW * scale;
+        const drawH = srcH * scale;
+        const offsetX = (targetWidth - drawW) / 2;
+        const offsetY = (targetHeight - drawH) / 2;
+        ctx.drawImage(canvas, offsetX, offsetY, drawW, drawH);
+        
+        // ---- 自动命名：日期-球员名 ----
+        let dateStr = document.getElementById('matchDate').value;
+        if (!dateStr) {
+            const today = new Date();
+            dateStr = today.toISOString().slice(0,10);
+        }
+        // 清理文件名非法字符
+        const safeNameA = playerAName.replace(/[/:*?"<>|]/g, '');
+        const safeNameB = playerBName.replace(/[\\/:*?"<>|]/g, '');
+        const fileName = `${dateStr}_${safeNameA}_vs_${safeNameB}.jpg`;
+        
+        finalCanvas.toBlob((blob) => {
+            if (blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } else {
+                alert(tr('imageFail'));
+            }
+        }, 'image/jpeg', 0.92);
+    } catch (err) {
+        console.error(err);
+        alert(tr('exportFail'));
+    } finally {
+        if (container && container.parentNode) container.parentNode.removeChild(container);
+    }
+}
+
+function updateNetRateDisplay() { 
+    let totalA = netWonA + netLostA;
+    let rateA = totalA === 0 ? 0 : Math.round((netWonA / totalA) * 100);
+    let totalB = netWonB + netLostB;
+    let rateB = totalB === 0 ? 0 : Math.round((netWonB / totalB) * 100);
+    document.getElementById('netRateA').innerHTML = `${playerAName}: ${rateA}% (${netWonA}/${totalA})`;
+    document.getElementById('netRateB').innerHTML = `${playerBName}: ${rateB}% (${netWonB}/${totalB})`;
+}
+function updateStatsButtonsUI() {
+    document.getElementById('statWCountA').innerText = wA;
+    document.getElementById('statNWCountA').innerText = netWonA;
+    document.getElementById('statNLCountA').innerText = netLostA;
+    document.getElementById('statUECountA').innerText = ueA;
+    document.getElementById('statWCountB').innerText = wB;
+    document.getElementById('statNWCountB').innerText = netWonB;
+    document.getElementById('statNLCountB').innerText = netLostB;
+    document.getElementById('statUECountB').innerText = ueB;
+    updateNetRateDisplay();
+}
+function refreshStatShow() { updateStatsButtonsUI(); }
+
+function updateStats() { 
+    renderAtpPanel();
+    updateStatsButtonsUI();
+    updateStatsDateDisplay(); 
+}
+function renderAtpPanel() { 
+    var body = document.getElementById('atpBody');
+    if (!body) return;
+    updateFilterTabsUI();
+    // Use filtered stats
+    var fs = getFilteredStats();
+    var _wA=fs.wA,_wB=fs.wB,_ueA=fs.ueA,_ueB=fs.ueB;
+    var _fWinA=fs.firstWinA,_fWinB=fs.firstWinB,_fLoseA=fs.firstLoseA,_fLoseB=fs.firstLoseB;
+    var _sWinA=fs.secondWinA||0,_sWinB=fs.secondWinB||0,_sLoseA=fs.secondLoseA||0,_sLoseB=fs.secondLoseB||0;
+    var _aceA=fs.aceCountA,_aceB=fs.aceCountB;
+    var _fAceA=fs.firstAceCountA,_fAceB=fs.firstAceCountB;
+    var _sAceA=fs.secondAceCountA,_sAceB=fs.secondAceCountB;
+    var _dfA=fs.doubleFaultCountA,_dfB=fs.doubleFaultCountB;
+    var _sfA=fs.serveFaultCountA||0,_sfB=fs.serveFaultCountB||0;
+    var _nwA=fs.netWonA,_nlA=fs.netLostA,_nwB=fs.netWonB,_nlB=fs.netLostB;
+    var _bkA=fs.breakCountA,_bkB=fs.breakCountB,_bpA=fs.breakPointTotalA,_bpB=fs.breakPointTotalB;
+    var _ttWA=fs.thirtyThirtyWonA||0,_ttWB=fs.thirtyThirtyWonB||0,_ttOA=fs.thirtyThirtyOppA||0,_ttOB=fs.thirtyThirtyOppB||0;
+    var _dcWA=fs.deuceWonA||0,_dcWB=fs.deuceWonB||0,_dcOA=fs.deuceOppA||0,_dcOB=fs.deuceOppB||0;
+    var _lhA=fs.loveHoldA||0,_lhB=fs.loveHoldB||0,_lbA=fs.loveBreakA||0,_lbB=fs.loveBreakB||0;
+    var _sgWA=fs.sgWinA||0,_sgTA=fs.sgTotA||0,_sgWB=fs.sgWinB||0,_sgTB=fs.sgTotB||0;
+    var _ptA=fs.currentSetPointsA||0, _ptB=fs.currentSetPointsB||0;
+
+    var netTotalA = _nwA + _nlA, netTotalB = _nwB + _nlB;
+    var netRateA = netTotalA>0 ? Math.round(_nwA/netTotalA*100) : 0;
+    var netRateB = netTotalB>0 ? Math.round(_nwB/netTotalB*100) : 0;
+    var fTotA = _fWinA+_fLoseA+_sfA, fTotB = _fWinB+_fLoseB+_sfB;
+    var fInA  = _fWinA+_fLoseA, fInB = _fWinB+_fLoseB;
+    var firstInRA = fTotA>0 ? Math.round(fInA/fTotA*100) : 0;
+    var firstInRB = fTotB>0 ? Math.round(fInB/fTotB*100) : 0;
+    var firstWinRA = fInA>0 ? Math.round(_fWinA/fInA*100) : 0;
+    var firstWinRB = fInB>0 ? Math.round(_fWinB/fInB*100) : 0;
+    var sTotA = _sWinA+_sLoseA+_dfA, sTotB = _sWinB+_sLoseB+_dfB;
+    var secWinRA = sTotA>0 ? Math.round(_sWinA/sTotA*100) : 0;
+    var secWinRB = sTotB>0 ? Math.round(_sWinB/sTotB*100) : 0;
+    var sgRA = _sgTA>0 ? Math.round(_sgWA/_sgTA*100) : 0;
+    var sgRB = _sgTB>0 ? Math.round(_sgWB/_sgTB*100) : 0;
+    var bpRA = _bpA>0 ? Math.round(_bkA/_bpA*100) : 0;
+    var bpRB = _bpB>0 ? Math.round(_bkB/_bpB*100) : 0;
+    var ttRA = _ttOA>0 ? Math.round(_ttWA/_ttOA*100) : 0;
+    var ttRB = _ttOB>0 ? Math.round(_ttWB/_ttOB*100) : 0;
+    var dcRA = _dcOA>0 ? Math.round(_dcWA/_dcOA*100) : 0;
+    var dcRB = _dcOB>0 ? Math.round(_dcWB/_dcOB*100) : 0;
+
+    // For total points: if filter=all use setScores, else use per-set points
+    var totA=0, totB=0;
+    if (currentStatsFilter === 'all') {
+        var allSets2 = setScores.slice();
+        if (currentSetPointsA>0||currentSetPointsB>0) allSets2.push({a:currentSetPointsA,b:currentSetPointsB});
+        allSets2.forEach(function(s){totA+=s.a; totB+=s.b;});
+    } else {
+        totA = _ptA; totB = _ptB;
+    }
+    var totAll=totA+totB;
+    var totRA = totAll>0 ? Math.round(totA/totAll*100) : 0;
+    var totRB = totAll>0 ? Math.round(totB/totAll*100) : 0;
+
+    function bars(pA, pB) { var total = pA+pB; if (total===0) { pA=1; pB=1; total=2; } var wa = Math.round(pA/total*100); var wb = Math.round(pB/total*100); return [wa, wb]; }
+    function row(label, vA, vB, pA, pB, extraClass) { var b = bars(pA, pB); var cls = 'atp-stat-row' + (extraClass ? ' '+extraClass : ''); return '<div class="'+cls+'"><div class="atp-vals"><div class="atp-v-a">'+vA+'</div><div class="atp-v-label">'+label+'</div><div class="atp-v-b">'+vB+'</div></div><div class="atp-bar"><div class="atp-bar-half left"><div class="atp-fill-a" style="width:'+b[0]+'%"></div></div><div class="atp-bar-half right"><div class="atp-fill-b" style="width:'+b[1]+'%"></div></div></div></div>'; }
+    var html = '';
+    var S = tr('statsLabels');
+    var aceVA = _aceA + '<br><span class="atp-sub">'+tr('aceFirstSecond')(_fAceA, _sAceA)+'</span>';
+    var aceVB = _aceB + '<br><span class="atp-sub">'+tr('aceFirstSecond')(_fAceB, _sAceB)+'</span>';
+    html += row(S.ace, aceVA, aceVB, _aceA, _aceB, '');
+    html += row(S.doubleFault, _dfA, _dfB, _dfA, _dfB, '');
+    html += row(S.winner, _wA, _wB, _wA, _wB, '');
+    html += row(S.ue, _ueA, _ueB, _ueA, _ueB, '');
+    var netClass = 'net-row' + (netStatsVisible ? '' : ' net-hidden');
+    var netVA = netRateA+'%<br><span class="atp-sub">('+_nwA+'/'+netTotalA+')</span>';
+    var netVB = netRateB+'%<br><span class="atp-sub">('+_nwB+'/'+netTotalB+')</span>';
+    html += row(S.net, netVA, netVB, netRateA, netRateB, netClass);
+    html += row(S.firstIn, firstInRA+'%', firstInRB+'%', firstInRA, firstInRB, '');
+    html += row(S.firstWin, firstWinRA+'%', firstWinRB+'%', firstWinRA, firstWinRB, '');
+    html += row(S.secondWin, secWinRA+'%', secWinRB+'%', secWinRA, secWinRB, '');
+    html += row(S.serviceGames, sgRA+'%<br><span class="atp-sub">('+_sgWA+'/'+_sgTA+')</span>', sgRB+'%<br><span class="atp-sub">('+_sgWB+'/'+_sgTB+')</span>', sgRA, sgRB, '');
+    html += row(S.breakPoint, bpRA+'%<br><span class="atp-sub">('+_bkA+'/'+_bpA+')</span>', bpRB+'%<br><span class="atp-sub">('+_bkB+'/'+_bpB+')</span>', bpRA, bpRB, '');
+    html += row(S.thirtyThirty, ttRA+'%<br><span class="atp-sub">('+_ttWA+'/'+_ttOA+')</span>', ttRB+'%<br><span class="atp-sub">('+_ttWB+'/'+_ttOB+')</span>', ttRA, ttRB, '');
+    html += row(S.deucePoint, dcRA+'%<br><span class="atp-sub">('+_dcWA+'/'+_dcOA+')</span>', dcRB+'%<br><span class="atp-sub">('+_dcWB+'/'+_dcOB+')</span>', dcRA, dcRB, '');
+    html += row(S.loveHold, _lhA, _lhB, _lhA, _lhB, '');
+    html += row(S.loveBreak, _lbA, _lbB, _lbA, _lbB, '');
+    if (currentStatsFilter === 'all') {
+        var allSets3 = setScores.slice();
+        if (currentSetPointsA>0||currentSetPointsB>0) allSets3.push({a:currentSetPointsA,b:currentSetPointsB});
+        allSets3.forEach(function(s, idx) { var tot=s.a+s.b; var rA=tot>0?Math.round(s.a/tot*100):0; var rB=tot>0?Math.round(s.b/tot*100):0; html += row(tr('setPoints')(idx+1), s.a+'<br><span class="atp-sub">('+rA+'%)</span>', s.b+'<br><span class="atp-sub">('+rB+'%)</span>', s.a, s.b, ''); });
+    }
+    html += row(S.total, totA+'<br><span class="atp-sub">('+totRA+'%)</span>', totB+'<br><span class="atp-sub">('+totRB+'%)</span>', totA, totB, '');
+    body.innerHTML = html;
+}
+function startMatch(){ resetAllMatchCore(); playerAName = document.getElementById('pA').value || tr('defaultPlayerA'); if (playerAName.trim() === "") playerAName = tr('defaultPlayerA'); playerBName = document.getElementById('pB').value || tr('defaultPlayerB'); let mode = document.getElementById('matchMode').value; applyMatchModeSetting(mode); let matchDate = document.getElementById('matchDate').value; document.getElementById('displayDate').innerText = `${tr('dateDisplay')}: ${matchDate}`; refreshAllNamesUI(); document.getElementById('setupBox').style.display = 'none'; document.getElementById('scoreboard').style.display = 'block'; document.getElementById('ctrlWrap').style.display = 'block'; const continueBtn = document.getElementById('continueMatchBtn'); if(continueBtn) continueBtn.style.display = 'none'; const switchBtn = document.getElementById('switchToSetupBtn'); if(switchBtn) switchBtn.style.display = 'inline-block'; matchStarted = true; if(mode === "tiebreak") startDirectTiebreak(7); else if(mode === "superTiebreak") startDirectTiebreak(10); else { renderBoard(); updateStats(); refreshStatShow(); syncPanelsByServer(); } updateStatsDateDisplay(); document.getElementById("themeSwitcher").classList.add("visible"); }
+function continueMatch() { let newNameA = document.getElementById('pA').value.trim(); if(newNameA === "") newNameA = tr('defaultPlayerA'); let newNameB = document.getElementById('pB').value.trim(); if(newNameB === "") newNameB = tr('defaultPlayerB'); playerAName = newNameA; playerBName = newNameB; refreshAllNamesUI(); renderBoard(); updateStats(); refreshStatShow(); document.getElementById('setupBox').style.display = 'none'; document.getElementById('scoreboard').style.display = 'block'; document.getElementById('ctrlWrap').style.display = 'block'; const continueBtn = document.getElementById('continueMatchBtn'); if(continueBtn) continueBtn.style.display = 'none'; const switchBtn = document.getElementById('switchToSetupBtn'); if(switchBtn) switchBtn.style.display = 'inline-block'; syncPanelsByServer(); updateStatsDateDisplay(); }
+function resetAllMatch(){ if(!confirm(tr('confirmRestart'))) return; safeAbortRecording(); resetAllMatchCore(); let mode = document.getElementById('matchMode').value; applyMatchModeSetting(mode); if(mode === "tiebreak") startDirectTiebreak(7); else if(mode === "superTiebreak") startDirectTiebreak(10); else { renderBoard(); updateStats(); refreshStatShow(); syncPanelsByServer(); } updateStatsDateDisplay(); }
+function refreshAllNamesUI() { 
+    document.getElementById('nameA').innerText = playerAName; document.getElementById('nameB').innerText = playerBName; 
+    document.getElementById('statsHeaderA').innerText = playerAName; document.getElementById('statsHeaderB').innerText = playerBName; 
+    document.getElementById('ctrlTitleA').innerText = playerAName + ' ' + tr('action'); document.getElementById('ctrlTitleB').innerText = playerBName + ' ' + tr('action'); 
+    var ha=document.getElementById('atpNameA'); var hb=document.getElementById('atpNameB'); if(ha)ha.textContent=playerAName; if(hb)hb.textContent=playerBName;
+    updateStatsButtonsUI();
+}
+function resetAllMatchCore() { 
+    wA=0;wB=0;ueA=0;ueB=0; firstWinA=0;firstWinB=0;firstLoseA=0;firstLoseB=0; secondWinA=0;secondWinB=0;secondLoseA=0;secondLoseB=0; 
+    pA=0;pB=0;gA=0;gB=0;server='A'; setList=[];tieA=0;tieB=0;inTie=false;snap=null; undoHistory=[]; 
+    serviceGames=[];breakCountA=0;breakCountB=0; breakPointTotalA=0;breakPointTotalB=0;lastCalcBreakPoint=0; 
+    setScores=[];currentSetPointsA=0;currentSetPointsB=0; serveFaultCountA=0;serveFaultCountB=0; 
+    aceCountA=0;aceCountB=0; firstAceCountA=0;firstAceCountB=0; secondAceCountA=0;secondAceCountB=0; 
+    doubleFaultCountA=0;doubleFaultCountB=0; servePhaseA=1; servePhaseB=1; tiePointNum=0; tiebreakFirstReceiver=null; lastSetLastGameServer=null;
+    thirtyThirtyWonA=0;thirtyThirtyWonB=0;thirtyThirtyOppA=0;thirtyThirtyOppB=0;
+    deuceWonA=0;deuceWonB=0;deuceOppA=0;deuceOppB=0;
+    loveHoldA=0;loveHoldB=0;loveBreakA=0;loveBreakB=0;
+    netWonA=0; netLostA=0; netWonB=0; netLostB=0;
+    resetPointData(); resetMatchFinishedFlag();
+    applyNetStatsVisibility();
+    currentStatsFilter = 'all';
+    updateFilterTabsUI();
+}
+function wouldSetWinEndMatch(side) {
+    if (maxWins === 99) return false;
+    const wins = getSetsWon();
+    if (side === 'A') wins.winsA++;
+    else wins.winsB++;
+    return wins.winsA >= maxWins || wins.winsB >= maxWins;
+}
+function getSetPointLabel(side) {
+    return wouldSetWinEndMatch(side) ? tr('pointLabels.match') : tr('pointLabels.set');
+}
+function wouldWinSetByWinningCurrentGame(side) {
+    const nextGA = gA + (side === 'A' ? 1 : 0);
+    const nextGB = gB + (side === 'B' ? 1 : 0);
+    return (nextGA >= 6 && nextGA - nextGB >= 2) || (nextGB >= 6 && nextGB - nextGA >= 2);
+}
+function wouldWinTiebreakByWinningPoint(side) {
+    const nextTA = tieA + (side === 'A' ? 1 : 0);
+    const nextTB = tieB + (side === 'B' ? 1 : 0);
+    return (nextTA >= tiebreakTargetScore && nextTA - nextTB >= 2) || (nextTB >= tiebreakTargetScore && nextTB - nextTA >= 2);
+}
+function renderBoard() { 
+    document.getElementById('dotA').style.display = server==='A' ? 'block' : 'none'; 
+    document.getElementById('dotB').style.display = server==='B' ? 'block' : 'none'; 
+    let htmlA='',htmlB=''; 
+    for(let i=0;i<setList.length;i++){ let s=setList[i]; let wa = s.a > s.b, wb = s.b > s.a; let supA = s.ta ? `<sup class="tiebreak-sup">${s.ta}</sup>` : ''; let supB = s.tb ? `<sup class="tiebreak-sup">${s.tb}</sup>` : ''; htmlA+=`<div class="set past-set ${wa?'winner':''}">${s.a}${supA}</div>`; htmlB+=`<div class="set past-set ${wb?'winner':''}">${s.b}${supB}</div>`; } 
+    htmlA+=`<div class="set current-set">${gA}</div>`; htmlB+=`<div class="set current-set">${gB}</div>`; 
+    document.getElementById('setsA').innerHTML = htmlA; document.getElementById('setsB').innerHTML = htmlB; 
+    if(inTie){ document.getElementById('pointA').innerText = tieA; document.getElementById('pointB').innerText = tieB; }else{ document.getElementById('pointA').innerText = getPointStr(pA,pB); document.getElementById('pointB').innerText = getPointStr(pB,pA); } 
+    let keyPoint = {side:'',text:''}; 
+    if(inTie){ if(wouldWinTiebreakByWinningPoint('A')){ keyPoint.side='A'; keyPoint.text = getSetPointLabel('A'); } else if(wouldWinTiebreakByWinningPoint('B')){ keyPoint.side='B'; keyPoint.text = getSetPointLabel('B'); } } else { 
+        if(pA>=3 && pB>=3){ if(pA>pB) keyPoint.side='A'; else if(pB>pA) keyPoint.side='B'; } else if(pA===3 && pB<3) keyPoint.side='A'; else if(pB===3 && pA<3) keyPoint.side='B'; 
+        let isBreak = keyPoint.side !== server; 
+        if(keyPoint.side && wouldWinSetByWinningCurrentGame(keyPoint.side)) keyPoint.text = getSetPointLabel(keyPoint.side); 
+        else if(isBreak) keyPoint.text = tr('pointLabels.break'); else keyPoint.text = tr('pointLabels.game'); 
+    } 
+    let keyPointA = document.getElementById('keyPointA'); let keyPointB = document.getElementById('keyPointB'); 
+    keyPointA.classList.remove('show'); keyPointB.classList.remove('show'); 
+    if(keyPoint.side && keyPoint.text){ if(keyPoint.side === 'A'){ keyPointA.innerText = keyPoint.text; keyPointA.classList.add('show'); } else{ keyPointB.innerText = keyPoint.text; keyPointB.classList.add('show'); } } 
+    syncPanelsByServer(); 
+}
+function syncPanelsByServer() { /* 重写为上方新版本 */ 
+    if(matchFinished) return;
+    const panelA = document.getElementById('playerCtrlA');
+    const panelB = document.getElementById('playerCtrlB');
+    const isServerA = (server === 'A');
+    if (isServerA) {
+        panelA.classList.remove('disabled-panel');
+        panelB.classList.add('disabled-panel');
+    } else {
+        panelB.classList.remove('disabled-panel');
+        panelA.classList.add('disabled-panel');
+    }
+    updateServeButtonsState('A');
+    updateServeButtonsState('B');
+}
+function applyMatchModeSetting(mode) { currentMatchMode = mode; decidingSetRule = document.getElementById("decidingSetRule")?.value || "super"; if(mode === "tiebreak" || mode === "superTiebreak") { maxWins = 1; useSuperTiebreakForDeciding = false; } else { switch(mode) { case "oneSet": maxWins = 1; useSuperTiebreakForDeciding = false; break; case "threeTwo": maxWins = 2; useSuperTiebreakForDeciding = true; break; case "fiveThree": maxWins = 3; useSuperTiebreakForDeciding = true; break; default: maxWins = 99; useSuperTiebreakForDeciding = false; break; } } let modeText = document.getElementById("displayMode"); if(modeText) modeText.innerText = tr('modeDisplay')[mode] || tr('modeDisplay').custom; }
+function startDirectTiebreak(targetScore) { resetAllMatchCore(); inTie = true; tieA=0; tieB=0; tiePointNum=0; tiebreakTargetScore = targetScore; server = 'A'; tiebreakFirstReceiver=null; lastSetLastGameServer=null; gA=0;gB=0; setList=[]; setScores=[]; currentSetPointsA=0;currentSetPointsB=0; serviceGames=[]; breakCountA=breakCountB=0; breakPointTotalA=breakPointTotalB=0; servePhaseA=1;servePhaseB=1; renderBoard(); updateStats(); syncPanelsByServer(); matchFinished=false; if(document.getElementById("matchWinnerBadge")) document.getElementById("matchWinnerBadge").style.display = "none"; disableAllMatchControls(false); syncPanelsByServer(); }
+function disableAllMatchControls(disabled) { let allControlBtns = document.querySelectorAll('.player-ctrl button, .stats-row button, .serve-grid button, .btn-undo, .small-btn:not(#switchToSetupBtn):not(#lockScreenBtn):not(#recordScreenBtn):not(#toggleNetStatsBtn):not(#exportImageBtn):not(#saveMatchFileBtn):not(#copyStatsBtn)'); allControlBtns.forEach(btn => { if(btn) btn.disabled = disabled; }); if(disabled) document.querySelectorAll('.small-btn[onclick*="switchServer"], .small-btn[onclick*="resetGameOnly"], .small-btn[onclick*="enterTiebreak"]').forEach(btn => btn.disabled = true); else { document.querySelectorAll('.small-btn[onclick*="switchServer"], .small-btn[onclick*="resetGameOnly"], .small-btn[onclick*="enterTiebreak"]').forEach(btn => btn.disabled = false); syncPanelsByServer(); } }
+function resetMatchFinishedFlag() { matchFinished = false; matchWinner = null; let badge = document.getElementById("matchWinnerBadge"); if(badge) badge.style.display = "none"; disableAllMatchControls(false); }
+function toggleNetStatsVisibility() { netStatsVisible = !netStatsVisible; applyNetStatsVisibility(); const toggleBtn = document.getElementById('toggleNetStatsBtn'); if (toggleBtn) { toggleBtn.innerText = netStatsVisible ? tr('hideNet') : tr('showNet'); } }
+function applyNetStatsVisibility() { const nwButtons = [document.getElementById('statNWA'),document.getElementById('statNLA'),document.getElementById('statNWB'),document.getElementById('statNLB')]; nwButtons.forEach(btn => { if(btn) { if(netStatsVisible) btn.classList.remove('btn-hidden'); else btn.classList.add('btn-hidden'); } }); const netRow = document.getElementById('netSuccessRow'); if (netRow) netRow.style.display = netStatsVisible ? 'table-row' : 'none'; document.querySelectorAll('.atp-stat-row.net-row').forEach(function(r){ r.classList.toggle('net-hidden', !netStatsVisible); }); }
+function addW(who){ if(matchFinished)return; saveSnap(); who==='A'?wA++:wB++; updateStatsButtonsUI(); updateStats(); }
+function addUE(who){ if(matchFinished)return; saveSnap(); who==='A'?ueA++:ueB++; updateStatsButtonsUI(); updateStats(); }
+function addNW(who){ if(matchFinished)return; saveSnap(); if(who==='A') netWonA++; else netWonB++; updateStatsButtonsUI(); updateStats(); }
+function addNL(who){ if(matchFinished)return; saveSnap(); if(who==='A') netLostA++; else netLostB++; updateStatsButtonsUI(); updateStats(); }
+function createSnap() { return { wA,wB,ueA,ueB, firstWinA,firstWinB,firstLoseA,firstLoseB, secondWinA,secondWinB,secondLoseA,secondLoseB, pA,pB,gA,gB,server,inTie,tieA,tieB, setList:JSON.parse(JSON.stringify(setList)), serviceGames:JSON.parse(JSON.stringify(serviceGames)), breakCountA,breakCountB,breakPointTotalA,breakPointTotalB,lastCalcBreakPoint, setScores:JSON.parse(JSON.stringify(setScores)), currentSetPointsA,currentSetPointsB, serveFaultCountA,serveFaultCountB, aceCountA,aceCountB, firstAceCountA,firstAceCountB, secondAceCountA,secondAceCountB, doubleFaultCountA,doubleFaultCountB, thirtyThirtyWonA,thirtyThirtyWonB,thirtyThirtyOppA,thirtyThirtyOppB, deuceWonA,deuceWonB,deuceOppA,deuceOppB, loveHoldA,loveHoldB,loveBreakA,loveBreakB, servePhaseA,servePhaseB, tiePointNum, tiebreakFirstReceiver, lastSetLastGameServer, netWonA,netLostA,netWonB,netLostB }; }
+function saveSnap() { snap = createSnap(); undoHistory.push(snap); if (undoHistory.length > MAX_UNDO_STEPS) undoHistory.shift(); }
+function undoStep(){ if(matchFinished || undoHistory.length === 0) return; snap = undoHistory.pop(); restoreSnapExt(snap); updateStats(); renderBoard(); syncPanelsByServer(); }
+function restoreSnapExt(s) { wA=s.wA; wB=s.wB; ueA=s.ueA; ueB=s.ueB; firstWinA=s.firstWinA; firstWinB=s.firstWinB; firstLoseA=s.firstLoseA; firstLoseB=s.firstLoseB; secondWinA=s.secondWinA; secondWinB=s.secondWinB; secondLoseA=s.secondLoseA; secondLoseB=s.secondLoseB; pA=s.pA; pB=s.pB; gA=s.gA; gB=s.gB; server=s.server; inTie=s.inTie; tieA=s.tieA; tieB=s.tieB; setList=s.setList; serviceGames=s.serviceGames; breakCountA=s.breakCountA; breakCountB=s.breakCountB; breakPointTotalA=s.breakPointTotalA; breakPointTotalB=s.breakPointTotalB; lastCalcBreakPoint=s.lastCalcBreakPoint; setScores=s.setScores; currentSetPointsA=s.currentSetPointsA; currentSetPointsB=s.currentSetPointsB; serveFaultCountA=s.serveFaultCountA; serveFaultCountB=s.serveFaultCountB; aceCountA=s.aceCountA; aceCountB=s.aceCountB; firstAceCountA=s.firstAceCountA; firstAceCountB=s.firstAceCountB; secondAceCountA=s.secondAceCountA; secondAceCountB=s.secondAceCountB; doubleFaultCountA=s.doubleFaultCountA; doubleFaultCountB=s.doubleFaultCountB; thirtyThirtyWonA=s.thirtyThirtyWonA||0; thirtyThirtyWonB=s.thirtyThirtyWonB||0; thirtyThirtyOppA=s.thirtyThirtyOppA||0; thirtyThirtyOppB=s.thirtyThirtyOppB||0; deuceWonA=s.deuceWonA||0; deuceWonB=s.deuceWonB||0; deuceOppA=s.deuceOppA||0; deuceOppB=s.deuceOppB||0; loveHoldA=s.loveHoldA||0; loveHoldB=s.loveHoldB||0; loveBreakA=s.loveBreakA||0; loveBreakB=s.loveBreakB||0; servePhaseA=s.servePhaseA; servePhaseB=s.servePhaseB; tiePointNum=s.tiePointNum; tiebreakFirstReceiver=s.tiebreakFirstReceiver; lastSetLastGameServer=s.lastSetLastGameServer; netWonA=s.netWonA; netLostA=s.netLostA; netWonB=s.netWonB; netLostB=s.netLostB; renderBoard(); updateStats(); updateStatsButtonsUI(); syncPanelsByServer(); applyNetStatsVisibility(); }
+function resetPointData(){ pA=0; pB=0; }
+function toggleLockScreen(){ isScreenLocked = !isScreenLocked; const lockBtn = document.getElementById('lockScreenBtn'); const body = document.body; if (isScreenLocked) { body.classList.add('lock-scroll'); lockBtn.innerHTML = tr('unlock'); } else { body.classList.remove('lock-scroll'); lockBtn.innerHTML = tr('lock'); } }
+function switchToSetup(){ safeAbortRecording(); document.getElementById('setupBox').style.display = 'block'; document.getElementById('scoreboard').style.display = 'none'; document.getElementById('ctrlWrap').style.display = 'none'; document.getElementById('themeSwitcher').classList.remove('visible'); const continueBtn = document.getElementById('continueMatchBtn'); if(continueBtn) continueBtn.style.display = 'inline-block'; resetMatchFinishedFlag(); disableAllMatchControls(false); updateStatsDateDisplay(); }
+function resetGameOnly(){ if(matchFinished) return; saveSnap(); inTie = false; tieA=0; tieB=0; tiePointNum=0; lastCalcBreakPoint=0; resetPointData(); resetServePhase(); renderBoard(); updateStats(); syncPanelsByServer(); }
+function switchServer(){ if(matchFinished) return; saveSnap(); server = server === 'A' ? 'B' : 'A'; resetServePhase(null); renderBoard(); syncPanelsByServer(); }
+function firstServeAce(who){ if(matchFinished)return; saveSnap(); if(who==='A'){firstAceCountA++;aceCountA++;firstWinA++;} else {firstAceCountB++;aceCountB++;firstWinB++;} addPointDirect(who); resetServePhase(who); renderBoard(); updateStats(); refreshStatShow(); }
+function secondServeAce(who){ if(matchFinished)return; if ((who === 'A' && servePhaseA !== 2) || (who === 'B' && servePhaseB !== 2)) return; saveSnap(); if(who==='A'){secondAceCountA++;aceCountA++;secondWinA++;} else {secondAceCountB++;aceCountB++;secondWinB++;} addPointDirect(who); resetServePhase(who); renderBoard(); updateStats(); refreshStatShow(); }
+function serveFault(who){ if(matchFinished)return; saveSnap(); who==='A'?serveFaultCountA++:serveFaultCountB++; if(who==='A') servePhaseA=2; else servePhaseB=2; syncPanelsByServer(); renderBoard(); updateStats(); }
+function firstWin(who){ if(matchFinished)return; saveSnap(); who==='A'?firstWinA++:firstWinB++; resetServePhase(who); addPointDirect(who); }
+function firstLose(who){ if(matchFinished)return; saveSnap(); who==='A'?firstLoseA++:firstLoseB++; resetServePhase(who); let opp=who==='A'?'B':'A'; addPointDirect(opp); }
+function doubleFault(who){ if(matchFinished)return; saveSnap(); who==='A'?doubleFaultCountA++:doubleFaultCountB++; resetServePhase(who); let opp=who==='A'?'B':'A'; addPointDirect(opp); }
+function secondWin(who){ if(matchFinished)return; saveSnap(); who==='A'?secondWinA++:secondWinB++; resetServePhase(who); addPointDirect(who); }
+function secondLose(who){ if(matchFinished)return; saveSnap(); who==='A'?secondLoseA++:secondLoseB++; resetServePhase(who); let opp=who==='A'?'B':'A'; addPointDirect(opp); }
+function enterTiebreak(){ if(matchFinished) return; saveSnap(); inTie = true; tieA = 0; tieB = 0; tiePointNum = 0; updateTiebreakTarget(); const tiebreakFirstServer = server === 'A' ? 'B' : 'A'; tiebreakFirstReceiver = tiebreakFirstServer === 'A' ? 'B' : 'A'; server = tiebreakFirstServer; renderBoard(); syncPanelsByServer(); }
+function recordPrePointKeyStats(who) {
+    if (pA === 2 && pB === 2) {
+        thirtyThirtyOppA++;
+        thirtyThirtyOppB++;
+        who === 'A' ? thirtyThirtyWonA++ : thirtyThirtyWonB++;
+    }
+    if (pA >= 3 && pB >= 3 && pA === pB) {
+        deuceOppA++;
+        deuceOppB++;
+        who === 'A' ? deuceWonA++ : deuceWonB++;
+    }
+}
+function recordLoveGame(gameWinner) {
+    const loserPoint = gameWinner === 'A' ? pB : pA;
+    if (loserPoint !== 0) return;
+    if (gameWinner === server) gameWinner === 'A' ? loveHoldA++ : loveHoldB++;
+    else gameWinner === 'A' ? loveBreakA++ : loveBreakB++;
+}
+function addPointDirect(who){ if(matchFinished)return; who === 'A' ? currentSetPointsA++ : currentSetPointsB++; if(!inTie){ recordPrePointKeyStats(who); let receiver = server==='A' ? 'B' : 'A'; if(getActiveBreakPoints(receiver) > 0) receiver==='A' ? breakPointTotalA++ : breakPointTotalB++; who === 'A' ? pA++ : pB++; checkGameWin(); } else{ who === 'A' ? tieA++ : tieB++; autoTieServeAndSide(); checkTiebreak(); } renderBoard(); updateStats(); }
+function getActiveBreakPoints(receiver) {
+    const receiverPoint = receiver === 'A' ? pA : pB;
+    const serverPoint = receiver === 'A' ? pB : pA;
+    if (receiverPoint < 3) return 0;
+    if (receiverPoint === 3 && serverPoint < 3) return 3 - serverPoint;
+    if (receiverPoint >= 3 && serverPoint >= 3 && receiverPoint > serverPoint) return 1;
+    return 0;
+}
+function checkBreakPointRule() { let receiver = server==='A' ? 'B' : 'A'; let num = getActiveBreakPoints(receiver); if(num > lastCalcBreakPoint){ let add = num - lastCalcBreakPoint; receiver==='A' ? breakPointTotalA+=add : breakPointTotalB+=add; } lastCalcBreakPoint = num; }
+function checkGameWin(){ let gameWinner = null; if(pA >=4 && pA - pB >=2){ gameWinner = 'A'; gA++; } else if(pB >=4 && pB - pA >=2){ gameWinner = 'B'; gB++; } if(gameWinner){ recordLoveGame(gameWinner); lastSetLastGameServer = server; serviceGames.push({server:server, winner:gameWinner}); if(gameWinner !== server) gameWinner==='A' ? breakCountA++ : breakCountB++; swapServer(); resetPointData(); lastCalcBreakPoint = 0; resetServePhase(); checkSetWin(); syncPanelsByServer(); } }
+function checkSetWin() { if( (gA>=6 && gA-gB>=2) || (gB>=6 && gB-gA>=2) ){ setScores.push({a:currentSetPointsA, b:currentSetPointsB}); setList.push({a:gA, b:gB, ta:0, tb:0, stats:captureStatsSnap()}); handleSetServeRule(); gA=0; gB=0; resetPointData(); inTie = false; tieA=0; tieB=0; currentSetPointsA=0; currentSetPointsB=0; tiePointNum = 0; resetServePhase(); if(checkMatchCompletion()) { renderBoard(); return; } } else if(gA ===6 && gB ===6){ updateTiebreakTarget(); inTie = true; tieA=0; tieB=0; tiePointNum = 0; tiebreakFirstReceiver = server === 'A' ? 'B' : 'A'; syncPanelsByServer(); } }
+function checkTiebreak(){ let target = tiebreakTargetScore; if( (tieA>=target && tieA-tieB>=2) || (tieB>=target && tieB-tieA>=2) ){ let tieWinner = tieA>tieB ? 'A' : 'B'; tieWinner==='A' ? gA++ : gB++; lastSetLastGameServer = server; setScores.push({a:currentSetPointsA, b:currentSetPointsB}); setList.push({a:gA, b:gB, ta:tieA, tb:tieB, stats:captureStatsSnap()}); handleSetServeRule(); gA=0; gB=0; resetPointData(); inTie = false; tieA=0; tieB=0; currentSetPointsA=0; currentSetPointsB=0; tiePointNum = 0; resetServePhase(); checkMatchCompletion(); } }
+function handleSetServeRule(){ const lastSet = setList[setList.length - 1]; if(lastSet && (lastSet.ta > 0 || lastSet.tb > 0)){ server = tiebreakFirstReceiver ? tiebreakFirstReceiver : (server === 'A' ? 'B' : 'A'); } else { server = lastSetLastGameServer === 'A' ? 'B' : 'A'; } tiebreakFirstReceiver = null; lastSetLastGameServer = null; syncPanelsByServer(); }
+function swapServer(){ server = server === 'A' ? 'B' : 'A'; syncPanelsByServer(); }
+function resetServePhase(who = null){ if (who === 'A' || who === null) servePhaseA = 1; if (who === 'B' || who === null) servePhaseB = 1; syncPanelsByServer(); }
+function autoTieServeAndSide(){ if(!inTie) return; tiePointNum++; if(tiePointNum === 1) server = server === 'A' ? 'B' : 'A'; else if(tiePointNum > 1 && (tiePointNum - 1) % 2 === 0) server = server === 'A' ? 'B' : 'A'; syncPanelsByServer(); }
+function updateTiebreakTarget() { if(!useSuperTiebreakForDeciding) { tiebreakTargetScore = 7; return; } let currentSetNumber = setList.length + 1; let decidingSetNumber = (maxWins === 99) ? 99 : (maxWins * 2 - 1); let isDecidingSet = (maxWins !== 99 && currentSetNumber === decidingSetNumber); if(isDecidingSet && decidingSetRule === "super") tiebreakTargetScore = 10; else tiebreakTargetScore = 7; }
+function getSetsWon() { let winsA=0,winsB=0; for(let s of setList) { if(s.a > s.b) winsA++; else if(s.b > s.a) winsB++; } return { winsA, winsB }; }
+function checkMatchCompletion() { if(matchFinished) return true; let { winsA, winsB } = getSetsWon(); if(winsA >= maxWins) { matchFinished = true; matchWinner = 'A'; } else if(winsB >= maxWins) { matchFinished = true; matchWinner = 'B'; } if(matchFinished) { let badge = document.getElementById("matchWinnerBadge"); if(badge) { badge.style.display = "inline-block"; let winnerName = matchWinner === 'A' ? playerAName : playerBName; badge.innerHTML = tr('winnerBadge')(winnerName); } disableAllMatchControls(true); return true; } return false; }
+function getPointStr(self,opp){ if(self <4) return [0,15,30,40][self]; if(self === opp) return '40'; if(self - opp ===1) return 'AD'; return '40'; }
+// ── 录屏功能：1080p 稳定模式，适合长时间录制比分板区域 ──────────────────────
+let isRecording = false;
+let _mediaRecorder = null;
+let _recordedChunks = [];
+let _recordingCanvas = null;
+let _canvasStream = null;
+let _recordingAnimId = null;
+let _recordingTimerId = null;
+
+async function startRealRecording() {
+    if (isRecording) return;
+    const scoreboardElem = document.getElementById('scoreboard');
+    if (!scoreboardElem) { alert(tr('scoreboardMissing')); return; }
+
+    const TARGET_W = 1920;
+    const TARGET_H = 1080;
+    const TARGET_FPS = 8;
+    const FRAME_INTERVAL_MS = 250;
+    const VIDEO_BITRATE = 2000000;
+    const canvas = document.createElement('canvas');
+    canvas.width = TARGET_W;
+    canvas.height = TARGET_H;
+    _recordingCanvas = canvas;
+
+    const stream = canvas.captureStream(TARGET_FPS);
+    _canvasStream = stream;
+
+    // 选择最佳编码格式
+    const mimeTypes = [
+        'video/webm;codecs=h264',
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm',
+        'video/mp4'
+    ];
+    let chosenMime = '';
+    for (const mt of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mt)) { chosenMime = mt; break; }
+    }
+
+    const options = chosenMime ? { mimeType: chosenMime, videoBitsPerSecond: VIDEO_BITRATE } : { videoBitsPerSecond: VIDEO_BITRATE };
+    _mediaRecorder = new MediaRecorder(stream, options);
+    _recordedChunks = [];
+    _mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) _recordedChunks.push(e.data); };
+    _mediaRecorder.onstop = () => {
+        const ext = chosenMime.includes('mp4') ? 'mp4' : 'webm';
+        const blob = new Blob(_recordedChunks, { type: chosenMime || 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        // 文件命名：日期+姓名+比分板
+        let dateStr = document.getElementById('matchDate') ? document.getElementById('matchDate').value : '';
+        if (!dateStr) { const t = new Date(); dateStr = t.toISOString().slice(0,10); }
+        dateStr = dateStr.replace(/-/g, '');
+        const safeA = playerAName.replace(/[\/:*?"<>|\s]/g, '');
+        const safeB = playerBName.replace(/[\/:*?"<>|\s]/g, '');
+        a.download = `${dateStr}_${safeA}_vs_${safeB}_比分板.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        _recordedChunks = [];
+        _recordingCanvas = null;
+        _canvasStream = null;
+    };
+    _mediaRecorder.start(1000);
+    isRecording = true;
+
+    const recordBtn = document.getElementById('recordScreenBtn');
+    if (recordBtn) { recordBtn.innerText = tr('stopRecording'); recordBtn.classList.add('recording'); }
+
+    // 持续绘制帧到 canvas
+    async function drawFrame() {
+        if (!isRecording || !_recordingCanvas) return;
+        const elem = document.getElementById('scoreboard');
+        if (!elem) return;
+        try {
+            const ctx = _recordingCanvas.getContext('2d');
+            const screenshot = await html2canvas(elem, {
+                scale: 2,
+                backgroundColor: '#000000',
+                logging: false,
+                useCORS: false
+            });
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, TARGET_W, TARGET_H);
+            // 居中缩放放入1080p画布
+            const srcW = screenshot.width;
+            const srcH = screenshot.height;
+            const scale = Math.min(TARGET_W / srcW, TARGET_H / srcH);
+            const dw = srcW * scale;
+            const dh = srcH * scale;
+            const dx = (TARGET_W - dw) / 2;
+            const dy = (TARGET_H - dh) / 2;
+            ctx.drawImage(screenshot, dx, dy, dw, dh);
+        } catch(e) { console.warn('录屏帧绘制失败:', e); }
+        if (isRecording) {
+            _recordingTimerId = setTimeout(drawFrame, FRAME_INTERVAL_MS);
+        }
+    }
+    if (_recordingAnimId) cancelAnimationFrame(_recordingAnimId);
+    if (_recordingTimerId) clearTimeout(_recordingTimerId);
+    _recordingTimerId = null;
+    drawFrame();
+}
+
+async function stopRecordingAndSave(saveFile = true) {
+    if (!isRecording) return;
+    isRecording = false;
+    if (_recordingAnimId) { cancelAnimationFrame(_recordingAnimId); _recordingAnimId = null; }
+    if (_recordingTimerId) { clearTimeout(_recordingTimerId); _recordingTimerId = null; }
+    if (_canvasStream) { _canvasStream.getTracks().forEach(t => t.stop()); }
+    if (_mediaRecorder && _mediaRecorder.state !== 'inactive') {
+        if (saveFile) {
+            _mediaRecorder.stop(); // onstop 触发保存
+        } else {
+            _mediaRecorder.ondataavailable = null;
+            _mediaRecorder.onstop = null;
+            _mediaRecorder.stop();
+            _recordedChunks = [];
+            _recordingCanvas = null;
+            _canvasStream = null;
+        }
+    }
+    const recordBtn = document.getElementById('recordScreenBtn');
+    if (recordBtn) { recordBtn.innerText = tr('startRecording'); recordBtn.classList.remove('recording'); }
+}
+
+async function toggleScreenRecording() {
+    if (isRecording) {
+        await stopRecordingAndSave(true);
+    } else {
+        if (matchFinished) { alert(tr('recordingAfterFinish')); return; }
+        if (!document.getElementById('scoreboard') || document.getElementById('scoreboard').style.display !== 'block') {
+            alert(tr('recordingNeedStart')); return;
+        }
+        await startRealRecording();
+    }
+}
+
+// ── 复制文字版统计到剪贴板 ──────────────────────────────────
+function copyStatsToClipboard() {
+    // 获取比赛日期
+    const dateEl = document.getElementById('matchDate');
+    const dateStr = dateEl ? dateEl.value : '';
+
+    // 盘分
+    let setsStr = '';
+    const allSets = [...setScores];
+    if (currentSetPointsA > 0 || currentSetPointsB > 0) allSets.push({ a: currentSetPointsA, b: currentSetPointsB });
+    if (setList.length > 0) {
+        setList.forEach((s, i) => {
+            setsStr += `  ${tr('setN')(i+1)}: ${s.a}-${s.b}`;
+            if (s.ta || s.tb) setsStr += ` (${tr('tiebreakScore')} ${s.ta}-${s.tb})`;
+            setsStr += '\n';
+        });
+    }
+    if (gA > 0 || gB > 0) setsStr += `  ${tr('currentSet')}: ${gA}-${gB}\n`;
+
+    // 发球统计
+    const fAceA = firstAceCountA, fAceB = firstAceCountB;
+    const fTotA = firstWinA + firstLoseA + serveFaultCountA;
+    const fTotB = firstWinB + firstLoseB + serveFaultCountB;
+    const fInA = firstWinA + firstLoseA;
+    const fInB = firstWinB + firstLoseB;
+    const firstInRA = fTotA > 0 ? Math.round(fInA/fTotA*100) : 0;
+    const firstInRB = fTotB > 0 ? Math.round(fInB/fTotB*100) : 0;
+    const firstWinRA = fInA > 0 ? Math.round(firstWinA/fInA*100) : 0;
+    const firstWinRB = fInB > 0 ? Math.round(firstWinB/fInB*100) : 0;
+    const sAceA = secondAceCountA, sAceB = secondAceCountB;
+    const sTotA = secondWinA + secondLoseA + doubleFaultCountA;
+    const sTotB = secondWinB + secondLoseB + doubleFaultCountB;
+    const secWinRA = sTotA > 0 ? Math.round(secondWinA/sTotA*100) : 0;
+    const secWinRB = sTotB > 0 ? Math.round(secondWinB/sTotB*100) : 0;
+    const sgTotA = serviceGames.filter(i=>i.server==='A').length;
+    const sgWinA = serviceGames.filter(i=>i.server==='A'&&i.winner==='A').length;
+    const sgTotB = serviceGames.filter(i=>i.server==='B').length;
+    const sgWinB = serviceGames.filter(i=>i.server==='B'&&i.winner==='B').length;
+    const sgRA = sgTotA > 0 ? Math.round(sgWinA/sgTotA*100) : 0;
+    const sgRB = sgTotB > 0 ? Math.round(sgWinB/sgTotB*100) : 0;
+    const bpRA = breakPointTotalA > 0 ? Math.round(breakCountA/breakPointTotalA*100) : 0;
+    const bpRB = breakPointTotalB > 0 ? Math.round(breakCountB/breakPointTotalB*100) : 0;
+    const ttRA = thirtyThirtyOppA > 0 ? Math.round(thirtyThirtyWonA/thirtyThirtyOppA*100) : 0;
+    const ttRB = thirtyThirtyOppB > 0 ? Math.round(thirtyThirtyWonB/thirtyThirtyOppB*100) : 0;
+    const dcRA = deuceOppA > 0 ? Math.round(deuceWonA/deuceOppA*100) : 0;
+    const dcRB = deuceOppB > 0 ? Math.round(deuceWonB/deuceOppB*100) : 0;
+    const netTotA = netWonA + netLostA, netTotB = netWonB + netLostB;
+    const netRA = netTotA > 0 ? Math.round(netWonA/netTotA*100) : 0;
+    const netRB = netTotB > 0 ? Math.round(netWonB/netTotB*100) : 0;
+
+    // 总得分
+    let totA = 0, totB = 0;
+    allSets.forEach(s => { totA += s.a; totB += s.b; });
+
+    const W = 14; // 列宽
+    const pad = (s, w) => String(s).padStart(w);
+    const line = (label, a, b) => `  ${label.padEnd(12)}${pad(a,W)}${pad(b,W)}\n`;
+
+    let text = '';
+    text += `═══════════════════════════════════\n`;
+    text += `  ${tr('copyTitle')}\n`;
+    if (dateStr) text += `  ${tr('dateDisplay')}: ${dateStr}\n`;
+    text += `${''.padEnd(35,'─')}\n`;
+    text += `  ${tr('metric').padEnd(12)}${pad(playerAName,W)}${pad(playerBName,W)}\n`;
+    text += `${''.padEnd(35,'─')}\n`;
+    text += `${tr('score')}:\n${setsStr}`;
+    text += `${''.padEnd(35,'─')}\n`;
+    const S = tr('statsLabels');
+    text += line(S.ace, aceCountA, aceCountB);
+    text += line(S.doubleFault, doubleFaultCountA, doubleFaultCountB);
+    text += line(S.winner, wA, wB);
+    text += line(S.ue, ueA, ueB);
+    text += line(S.net, netRA+'%'+'('+netWonA+'/'+netTotA+')', netRB+'%'+'('+netWonB+'/'+netTotB+')');
+    text += line(S.firstIn, firstInRA+'%', firstInRB+'%');
+    text += line(S.firstWin, firstWinRA+'%', firstWinRB+'%');
+    text += line(S.secondWin, secWinRA+'%', secWinRB+'%');
+    text += line(S.serviceGames, sgRA+'%'+'('+sgWinA+'/'+sgTotA+')', sgRB+'%'+'('+sgWinB+'/'+sgTotB+')');
+    text += line(S.breakPoint, bpRA+'%'+'('+breakCountA+'/'+breakPointTotalA+')', bpRB+'%'+'('+breakCountB+'/'+breakPointTotalB+')');
+    text += line(S.thirtyThirty, ttRA+'%'+'('+thirtyThirtyWonA+'/'+thirtyThirtyOppA+')', ttRB+'%'+'('+thirtyThirtyWonB+'/'+thirtyThirtyOppB+')');
+    text += line(S.deucePoint, dcRA+'%'+'('+deuceWonA+'/'+deuceOppA+')', dcRB+'%'+'('+deuceWonB+'/'+deuceOppB+')');
+    text += line(S.loveHold, loveHoldA, loveHoldB);
+    text += line(S.loveBreak, loveBreakA, loveBreakB);
+    text += line(S.total, totA, totB);
+    text += `═══════════════════════════════════\n`;
+
+    const btn = document.getElementById('copyStatsBtn');
+    navigator.clipboard.writeText(text).then(() => {
+        if (btn) { const orig = btn.innerText; btn.innerText = tr('copied'); setTimeout(() => btn.innerText = orig, 1800); }
+    }).catch(() => {
+        // 降级：textarea 方案
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); if (btn) { const orig = btn.innerText; btn.innerText = tr('copied'); setTimeout(() => btn.innerText = orig, 1800); } }
+        catch(e) { alert(tr('copyFailed')); }
+        document.body.removeChild(ta);
+    });
+}
+
+
+// ── Scoreboard theme switcher ─────────────────────────────────
+var currentTheme = 'atp';
+var THEMES = ['atp','ao','rg','wim','uso'];
+function setTheme(t) {
+    if (!THEMES.includes(t)) return;
+    var sb = document.getElementById('scoreboard');
+    THEMES.forEach(function(th){ sb.classList.remove('theme-'+th); });
+    sb.classList.add('theme-'+t);
+    currentTheme = t;
+    document.querySelectorAll('.theme-pill').forEach(function(p){ p.classList.remove('active'); });
+    var pill = document.querySelector('.theme-pill.tp-'+t);
+    if (pill) pill.classList.add('active');
+}
+
+// ── 保存当前比赛为一个可继续编辑的独立 HTML 文件 ─────────────────
+function captureFullMatchState() {
+    return {
+        version: 1,
+        savedAt: new Date().toISOString(),
+        matchDate: document.getElementById('matchDate')?.value || '',
+        matchMode: document.getElementById('matchMode')?.value || currentMatchMode,
+        decidingSetRule,
+        playerAName,
+        playerBName,
+        matchStarted,
+        matchFinished,
+        matchWinner,
+        currentLanguage,
+        currentTheme,
+        currentStatsFilter,
+        netStatsVisible,
+        maxWins,
+        useSuperTiebreakForDeciding,
+        tiebreakTargetScore,
+        snap: createSnap()
+    };
+}
+
+function restoreFullMatchState(saved) {
+    if (!saved || !saved.snap) return;
+    currentLanguage = saved.currentLanguage || 'zh';
+    currentTheme = saved.currentTheme || 'atp';
+    currentStatsFilter = saved.currentStatsFilter ?? 'all';
+    netStatsVisible = saved.netStatsVisible !== false;
+    playerAName = saved.playerAName || tr('defaultPlayerA');
+    playerBName = saved.playerBName || tr('defaultPlayerB');
+    matchStarted = !!saved.matchStarted;
+    matchFinished = !!saved.matchFinished;
+    matchWinner = saved.matchWinner || null;
+    currentMatchMode = saved.matchMode || 'custom';
+    maxWins = saved.maxWins ?? 99;
+    useSuperTiebreakForDeciding = !!saved.useSuperTiebreakForDeciding;
+    decidingSetRule = saved.decidingSetRule || 'super';
+    tiebreakTargetScore = saved.tiebreakTargetScore || 7;
+    undoHistory = [];
+
+    const pA = document.getElementById('pA');
+    const pB = document.getElementById('pB');
+    const matchDate = document.getElementById('matchDate');
+    const matchMode = document.getElementById('matchMode');
+    const ruleSelect = document.getElementById('decidingSetRule');
+    if (pA) pA.value = playerAName;
+    if (pB) pB.value = playerBName;
+    if (matchDate) matchDate.value = saved.matchDate || '';
+    if (matchMode) matchMode.value = currentMatchMode;
+    if (ruleSelect) ruleSelect.value = decidingSetRule;
+
+    restoreSnapExt(saved.snap);
+    matchFinished = !!saved.matchFinished;
+    matchWinner = saved.matchWinner || null;
+    matchStarted = !!saved.matchStarted;
+    currentStatsFilter = saved.currentStatsFilter ?? 'all';
+    netStatsVisible = saved.netStatsVisible !== false;
+
+    applyLanguage();
+    setTheme(currentTheme);
+    refreshAllNamesUI();
+    applyNetStatsVisibility();
+    updateFilterTabsUI();
+
+    const setupBox = document.getElementById('setupBox');
+    const scoreboard = document.getElementById('scoreboard');
+    const ctrlWrap = document.getElementById('ctrlWrap');
+    const themeSwitcher = document.getElementById('themeSwitcher');
+    const continueBtn = document.getElementById('continueMatchBtn');
+    const switchBtn = document.getElementById('switchToSetupBtn');
+    if (matchStarted) {
+        if (setupBox) setupBox.style.display = 'none';
+        if (scoreboard) scoreboard.style.display = 'block';
+        if (ctrlWrap) ctrlWrap.style.display = 'block';
+        if (themeSwitcher) themeSwitcher.classList.add('visible');
+        if (continueBtn) continueBtn.style.display = 'none';
+        if (switchBtn) switchBtn.style.display = 'inline-block';
+    } else {
+        if (setupBox) setupBox.style.display = 'block';
+        if (scoreboard) scoreboard.style.display = 'none';
+        if (ctrlWrap) ctrlWrap.style.display = 'none';
+        if (themeSwitcher) themeSwitcher.classList.remove('visible');
+    }
+
+    renderBoard();
+    updateStats();
+    refreshStatShow();
+    updateStatsDateDisplay();
+
+    const overlay = document.getElementById('winnerOverlay');
+    if (overlay) {
+        overlay.classList.remove('show');
+        overlay.style.display = 'none';
+    }
+    const badge = document.getElementById('matchWinnerBadge');
+    if (matchFinished && matchWinner) {
+        if (badge) {
+            badge.style.display = 'inline-block';
+            badge.innerHTML = tr('winnerBadge')(matchWinner === 'A' ? playerAName : playerBName);
+        }
+        disableAllMatchControls(true);
+    } else {
+        if (badge) badge.style.display = 'none';
+        disableAllMatchControls(false);
+        syncPanelsByServer();
+    }
+}
+
+function safeFilePart(text) {
+    return String(text || '').trim().replace(/[\\/:*?"<>|\s]+/g, '_').replace(/^_+|_+$/g, '') || 'Player';
+}
+
+function buildSavedMatchFileName() {
+    let dateStr = document.getElementById('matchDate')?.value || new Date().toISOString().slice(0,10);
+    dateStr = dateStr.replace(/-/g, '');
+    return `${dateStr}_${safeFilePart(playerAName)}_vs_${safeFilePart(playerBName)}_比分记录.html`;
+}
+
+function saveMatchFile() {
+    if (!matchStarted) {
+        alert(tr('saveNeedStart'));
+        return;
+    }
+    try {
+        const saved = captureFullMatchState();
+        const savedJson = JSON.stringify(saved).replace(/<\//g, '<\\/');
+        let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+        html = html.replace(/<script id="savedMatchState"[\s\S]*?<\/script>\s*/g, '');
+        const restoreScript = `<script id="savedMatchState">\nwindow.__SAVED_MATCH_STATE__ = ${savedJson};\nif (typeof restoreFullMatchState === 'function') restoreFullMatchState(window.__SAVED_MATCH_STATE__);\n<\/script>\n`;
+        html = html.replace('</body>', restoreScript + '</body>');
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = buildSavedMatchFileName();
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        const btn = document.getElementById('saveMatchFileBtn');
+        if (btn) {
+            const orig = btn.innerText;
+            btn.innerText = currentLanguage === 'en' ? 'Saved' : '已保存';
+            setTimeout(() => btn.innerText = orig, 1800);
+        }
+    } catch (e) {
+        alert(tr('saveFileFail'));
+    }
+}
+
+
+// ════════════════════════════════════════════════════════════════
+// 统计过滤器：全场 / 某盘
+// ════════════════════════════════════════════════════════════════
+var currentStatsFilter = 'all'; // 'all' | 0 | 1 | 2 ...
+
+function captureStatsSnap() {
+    // 捕获当前所有统计变量的快照（用于盘级别过滤）
+    return {
+        wA,wB,ueA,ueB,
+        firstWinA,firstWinB,firstLoseA,firstLoseB,
+        secondWinA,secondWinB,secondLoseA,secondLoseB,
+        aceCountA,aceCountB,firstAceCountA,firstAceCountB,
+        secondAceCountA,secondAceCountB,
+        doubleFaultCountA,doubleFaultCountB,
+        thirtyThirtyWonA,thirtyThirtyWonB,thirtyThirtyOppA,thirtyThirtyOppB,
+        deuceWonA,deuceWonB,deuceOppA,deuceOppB,
+        loveHoldA,loveHoldB,loveBreakA,loveBreakB,
+        serveFaultCountA,serveFaultCountB,
+        netWonA,netLostA,netWonB,netLostB,
+        breakCountA,breakCountB,breakPointTotalA,breakPointTotalB,
+        sgWinA: serviceGames.filter(i=>i.server==='A'&&i.winner==='A').length,
+        sgTotA: serviceGames.filter(i=>i.server==='A').length,
+        sgWinB: serviceGames.filter(i=>i.server==='B'&&i.winner==='B').length,
+        sgTotB: serviceGames.filter(i=>i.server==='B').length,
+        currentSetPointsA, currentSetPointsB
+    };
+}
+
+function getFilteredStats() {
+    // Returns stats object for the current filter
+    if (currentStatsFilter === 'all') {
+        return captureStatsSnap();
+    }
+    var idx = currentStatsFilter; // 0-based set index
+    if (idx < 0 || idx >= setList.length) return captureStatsSnap();
+
+    var cur = setList[idx].stats || captureStatsSnap();
+    var prev = idx > 0 ? (setList[idx-1].stats || null) : null;
+
+    function d(a, b) { return (a || 0) - (b || 0); }
+    if (!prev) return cur;
+    return {
+        wA: d(cur.wA, prev.wA), wB: d(cur.wB, prev.wB),
+        ueA: d(cur.ueA, prev.ueA), ueB: d(cur.ueB, prev.ueB),
+        firstWinA: d(cur.firstWinA,prev.firstWinA), firstWinB: d(cur.firstWinB,prev.firstWinB),
+        firstLoseA: d(cur.firstLoseA,prev.firstLoseA), firstLoseB: d(cur.firstLoseB,prev.firstLoseB),
+        secondWinA: d(cur.secondWinA,prev.secondWinA), secondWinB: d(cur.secondWinB,prev.secondWinB),
+        secondLoseA: d(cur.secondLoseA,prev.secondLoseA), secondLoseB: d(cur.secondLoseB,prev.secondLoseB),
+        aceCountA: d(cur.aceCountA,prev.aceCountA), aceCountB: d(cur.aceCountB,prev.aceCountB),
+        firstAceCountA: d(cur.firstAceCountA,prev.firstAceCountA), firstAceCountB: d(cur.firstAceCountB,prev.firstAceCountB),
+        secondAceCountA: d(cur.secondAceCountA,prev.secondAceCountA), secondAceCountB: d(cur.secondAceCountB,prev.secondAceCountB),
+        doubleFaultCountA: d(cur.doubleFaultCountA,prev.doubleFaultCountA), doubleFaultCountB: d(cur.doubleFaultCountB,prev.doubleFaultCountB),
+        thirtyThirtyWonA: d(cur.thirtyThirtyWonA,prev.thirtyThirtyWonA), thirtyThirtyWonB: d(cur.thirtyThirtyWonB,prev.thirtyThirtyWonB),
+        thirtyThirtyOppA: d(cur.thirtyThirtyOppA,prev.thirtyThirtyOppA), thirtyThirtyOppB: d(cur.thirtyThirtyOppB,prev.thirtyThirtyOppB),
+        deuceWonA: d(cur.deuceWonA,prev.deuceWonA), deuceWonB: d(cur.deuceWonB,prev.deuceWonB),
+        deuceOppA: d(cur.deuceOppA,prev.deuceOppA), deuceOppB: d(cur.deuceOppB,prev.deuceOppB),
+        loveHoldA: d(cur.loveHoldA,prev.loveHoldA), loveHoldB: d(cur.loveHoldB,prev.loveHoldB),
+        loveBreakA: d(cur.loveBreakA,prev.loveBreakA), loveBreakB: d(cur.loveBreakB,prev.loveBreakB),
+        serveFaultCountA: d(cur.serveFaultCountA,prev.serveFaultCountA), serveFaultCountB: d(cur.serveFaultCountB,prev.serveFaultCountB),
+        netWonA: d(cur.netWonA,prev.netWonA), netLostA: d(cur.netLostA,prev.netLostA),
+        netWonB: d(cur.netWonB,prev.netWonB), netLostB: d(cur.netLostB,prev.netLostB),
+        breakCountA: d(cur.breakCountA,prev.breakCountA), breakCountB: d(cur.breakCountB,prev.breakCountB),
+        breakPointTotalA: d(cur.breakPointTotalA,prev.breakPointTotalA), breakPointTotalB: d(cur.breakPointTotalB,prev.breakPointTotalB),
+        sgWinA: d(cur.sgWinA,prev.sgWinA), sgTotA: d(cur.sgTotA,prev.sgTotA),
+        sgWinB: d(cur.sgWinB,prev.sgWinB), sgTotB: d(cur.sgTotB,prev.sgTotB),
+        // 当前盘总得分本身就是盘内数据，不是累计值，不能减去上一盘；否则单盘统计可能出现负数
+        currentSetPointsA: cur.currentSetPointsA || 0,
+        currentSetPointsB: cur.currentSetPointsB || 0
+    };
+}
+
+function setStatsFilter(f) {
+    currentStatsFilter = f;
+    updateFilterTabsUI();
+    renderAtpPanel();
+}
+
+function updateFilterTabsUI() {
+    // Rebuild the filter tabs based on completed sets + current set
+    var bar = document.getElementById('statsFilterBar');
+    if (!bar) return;
+    var completedSets = setList.length;
+    var hasCurrentSet = (gA > 0 || gB > 0 || currentSetPointsA > 0 || currentSetPointsB > 0) && !matchFinished;
+    // Build tabs
+    var html = '<button class="filter-tab' + (currentStatsFilter === 'all' ? ' active' : '') + '" id="filterTabAll" onclick="setStatsFilter(&apos;all&apos;)">'+tr('all')+'</button>';
+    for (var i = 0; i < completedSets; i++) {
+        var active = currentStatsFilter === i ? ' active' : '';
+        html += '<button class="filter-tab' + active + '" onclick="setStatsFilter(' + i + ')">'+tr('setN')(i+1)+'</button>';
+    }
+    bar.innerHTML = html;
+    // Update header center
+    var center = document.getElementById('atpPanelCenter');
+    if (center) {
+        if (currentStatsFilter === 'all') center.textContent = tr('stats');
+        else center.textContent = tr('setN')(currentStatsFilter+1);
+    }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 结束比赛功能
+// ════════════════════════════════════════════════════════════════
+var _preEndSnap = null;
+
+function endMatchManually() {
+    if (matchFinished) return;
+    if (!matchStarted) return;
+    if (!confirm(tr('confirmEndMatch'))) return;
+
+    // Save snap for undo
+    saveSnap();
+    _preEndSnap = snap;
+
+    // Determine winner from current sets won, fall back to current game score
+    var sw = getSetsWon();
+    var winner = null;
+    if (sw.winsA > sw.winsB) winner = 'A';
+    else if (sw.winsB > sw.winsA) winner = 'B';
+    else {
+        // Same sets won — decide by current game score
+        if (gA > gB) winner = 'A';
+        else if (gB > gA) winner = 'B';
+        else {
+            // Same games — decide by current point score
+            if (pA > pB || tieA > tieB) winner = 'A';
+            else if (pB > pA || tieB > tieA) winner = 'B';
+            else winner = 'A'; // truly equal, default to A (edge case)
+        }
+    }
+
+    matchFinished = true;
+    matchWinner = winner;
+
+    // Build score summary  e.g. "6-4  3-6  6-3"
+    var scoreStr = setList.map(function(s){ return s.a + '-' + s.b; }).join('  ');
+    if (gA > 0 || gB > 0) {
+        if (scoreStr) scoreStr += '  ';
+        scoreStr += gA + '-' + gB + ' *';
+    }
+
+    // Show modal
+    showWinnerModal(winner, scoreStr);
+
+    // Disable controls
+    disableAllMatchControls(true);
+
+    // Update badge
+    var badge = document.getElementById('matchWinnerBadge');
+    if (badge) {
+        badge.style.display = 'inline-block';
+        var winnerName = winner === 'A' ? playerAName : playerBName;
+        badge.innerHTML = tr('winnerBadge')(winnerName);
+    }
+}
+
+function showWinnerModal(winner, scoreStr) {
+    var winnerName = winner === 'A' ? playerAName : playerBName;
+    document.getElementById('winnerNameDisplay').textContent = tr('winnerText')(winnerName);
+    document.getElementById('winnerScoreDisplay').textContent = scoreStr || '';
+
+    var overlay = document.getElementById('winnerOverlay');
+    overlay.style.display = 'flex';
+    // Trigger animation on next frame
+    requestAnimationFrame(function(){
+        requestAnimationFrame(function(){
+            overlay.classList.add('show');
+        });
+    });
+}
+
+function closeWinnerModal() {
+    var overlay = document.getElementById('winnerOverlay');
+    overlay.classList.remove('show');
+    setTimeout(function(){ overlay.style.display = 'none'; }, 350);
+}
+
+function undoEndMatch() {
+    closeWinnerModal();
+    // Give modal time to close, then restore
+    setTimeout(function(){
+        if (_preEndSnap) {
+            restoreSnapExt(_preEndSnap);
+            _preEndSnap = null;
+            matchFinished = false;
+            matchWinner = null;
+            resetMatchFinishedFlag();
+            renderBoard();
+            updateStats();
+            syncPanelsByServer();
+        }
+    }, 120);
+}
+
+function safeAbortRecording() { if(isRecording) stopRecordingAndSave(false); }
+document.body.addEventListener('touchmove', function(e) { let scrollTop = document.documentElement.scrollTop || document.body.scrollTop; let deltaY = e.touches[0].clientY; if ((scrollTop <= 0 && deltaY > 0) || (document.body.scrollHeight - window.innerHeight - scrollTop <= 1 && deltaY < 0)) { e.preventDefault(); } }, { passive: false });
+document.getElementById('fontMinusBtn')?.addEventListener('click', () => changeStatsFontSize(-1));
+document.getElementById('fontPlusBtn')?.addEventListener('click', () => changeStatsFontSize(1));
+applyStatsFontSize();
+setDefaultDateToday();
+applyLanguage();
+</script>
+
+    <!-- ── 胜利者弹窗 ── -->
+    <div class="winner-overlay" id="winnerOverlay">
+        <div class="winner-card">
+            <span class="winner-trophy" id="winnerTrophy">🏆</span>
+            <div class="winner-label" id="winnerLabel">比赛结束</div>
+            <div class="winner-name" id="winnerNameDisplay">—</div>
+            <div class="winner-score" id="winnerScoreDisplay"></div>
+            <div class="winner-btn-row">
+                <button class="winner-btn winner-btn-secondary" id="winnerUndoBtn" onclick="undoEndMatch()">撤销</button>
+                <button class="winner-btn winner-btn-primary" id="winnerDoneBtn" onclick="closeWinnerModal()">完成</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
